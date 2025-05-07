@@ -4,5 +4,27 @@
 Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progetti-e-iniziative/pr-fesr-emilia-romagna-2021-2027/1223/20430/20509).
 
 
+## Project structure
+
+```
+.
+├── hallo                   
+├── kokoro                    
+├── backend
+│   ├── app.py        
+│   └── image_search.py    
+│   └── requirements.txt
+│   └── dataset_with_embeddings.csv
+│   ├── downloaded_images
+│       ├── img_00        
+│       └── img_01    
+│       └── ...                   
+├── frontend
+│   ├── index.html       
+│   └── objects_types_and_coordinates.geojson                      
+└── README.md
+```
+
 ## Backend
+
 ## Frontend
