@@ -1,0 +1,7 @@
+Flask
+flask-cors
+pandas
+numpy
+scikit-learn  # if using cosine similarity, etc.
+Pillow         # if working with images
+
