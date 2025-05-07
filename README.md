@@ -27,3 +27,9 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 ## Backend
 
 ## Frontend
+
+## Sources
+The project is based on three archives
+- [Lodovico](https://lodovico.medialibrary.it/)
+- [Classense](https://www.cdc.classense.ra.it/s/Classense/page/home)
+- [Il corago](http://www.ilcorago.org/benedetti/benedetti.asp)
