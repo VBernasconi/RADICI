@@ -25,9 +25,24 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 ```
 
 ## Backend
+A Flask application running on a server holding the images of the different archives and corresponding .csv file holding all the information
+Create a virtual environment and run 
+```
+pip install requirements
+```
+Then run the following command
+```
+python app.py
+```
+The first time, it will create a Fess index and store it locally as index.fess.
 
 ## Frontend
-
+In index.html, adapt the url to corresponding server.
+Setup a local server and run the following command
+```
+python3 -m http.server 8000
+```
+Open a browser and type `http://localhost:8000/`
 ## Sources
 The project is based on three archives
 - [Lodovico](https://lodovico.medialibrary.it/)
