@@ -1,3 +1,4 @@
+![RADICI LOGO.](RADICI_LOGO.png)
 # RADICI
 **R**ealizzazione di una infrastruttura di **A**ggregazione e **D**igitalizzazione di patrimoni per favorire l’**I**nterazione **c**on il settore delle **I**ndustrie culturali e creative.
 
