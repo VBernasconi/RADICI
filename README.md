@@ -7,9 +7,7 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 ## Project structure
 
 ```
-.
-├── hallo                   
-├── kokoro                    
+.                  
 ├── backend
 │   ├── app.py        
 │   └── image_search.py    
