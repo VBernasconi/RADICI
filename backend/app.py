@@ -18,7 +18,7 @@ CSV_FILE = "dataset_with_embeddings.csv"
 EMBEDDINGS_PATH = "dataset_with_embeddings.pkl" #"dataset_with_parsed_embeddings.csv"
 
 REPO_ID = "VBernasconi/RADICI"
-HF_TOKEN = "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"
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 # Download the file securely
 CSV_PATH = hf_hub_download(
