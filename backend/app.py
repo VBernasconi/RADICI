@@ -1,6 +1,7 @@
 # app.py
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from huggingface_hub import hf_hub_download
 import pandas as pd
 import numpy as np
 import ast
@@ -13,15 +14,25 @@ app = Flask(__name__)
 CORS(app)  # allow frontend calls
 
 INDEX_PATH = "index.faiss"
-CSV_PATH = "dataset_with_embeddings.csv"
+CSV_FILE = "dataset_with_embeddings.csv"
 EMBEDDINGS_PATH = "dataset_with_embeddings.pkl" #"dataset_with_parsed_embeddings.csv"
+
+REPO_ID = "VBernasconi/RADICI"
+HF_TOKEN = "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"
+
+# Download the file securely
+CSV_PATH = hf_hub_download(
+                           repo_id = REPO_ID,
+                           filename = CSV_FILE,
+                           repo_type = "dataset",
+                           token = HF_TOKEN
+)
 
 # Check if index exists
 if os.path.exists(INDEX_PATH):
     print("Loading existing FAISS index and metadata...")
     #df = pd.read_csv(EMBEDDINGS_PATH)
     df = pd.read_pickle(EMBEDDINGS_PATH)
-
     #df['parsed_embedding'] = df['parsed_embedding'].apply(lambda x: np.array(x, dtype=np.float32))
     index = faiss.read_index(INDEX_PATH)
 else:
