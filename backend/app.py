@@ -13,37 +13,62 @@ from image_search import build_faiss_index, load_embeddings, find_similar_images
 app = Flask(__name__)
 CORS(app)  # allow frontend calls
 
-INDEX_PATH = "index.faiss"
+INDEX_FILE = "index.faiss"
 CSV_FILE = "dataset_with_embeddings.csv"
-EMBEDDINGS_PATH = "dataset_with_embeddings.pkl" #"dataset_with_parsed_embeddings.csv"
+EMBEDDINGS_FILE = "dataset_with_embeddings.pkl" #"dataset_with_parsed_embeddings.csv"
 
 REPO_ID = "VBernasconi/RADICI"
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Download the file securely
+# Download CSV file
 CSV_PATH = hf_hub_download(
                            repo_id = REPO_ID,
                            filename = CSV_FILE,
                            repo_type = "dataset",
                            token = HF_TOKEN
-)
+                           )
+
+# Download PICKLE file
+EMBEDDINGS_PATH = hf_hub_download(
+                                  repo_id = REPO_ID,
+                                  filename = EMBEDDINGS_FILE,
+                                  repo_type = "dataset",
+                                  token = HF_TOKEN
+                                  )
+
+# Download the FAISS index
+INDEX_PATH = hf_hub_download(
+                             repo_id = REPO_ID,
+                             filename = INDEX_FILE,
+                             repo_type = "dataset",
+                             token = HF_TOKEN  # required for private repo
+                             )
 
 # Check if index exists
-if os.path.exists(INDEX_PATH):
-    print("Loading existing FAISS index and metadata...")
+#if os.path.exists(INDEX_PATH):
+#    print("Loading existing FAISS index and metadata...")
     #df = pd.read_csv(EMBEDDINGS_PATH)
-    df = pd.read_pickle(EMBEDDINGS_PATH)
+#    df = pd.read_pickle(EMBEDDINGS_PATH)
     #df['parsed_embedding'] = df['parsed_embedding'].apply(lambda x: np.array(x, dtype=np.float32))
-    index = faiss.read_index(INDEX_PATH)
-else:
-    print("Building FAISS index...")
-    df, embedding_matrix = load_embeddings(CSV_PATH)
-    df.to_pickle(EMBEDDINGS_PATH)
+#    index = faiss.read_index(INDEX_PATH)
+#else:
+#    print("Building FAISS index...")
+#    df, embedding_matrix = load_embeddings(CSV_PATH)
+#    df.to_pickle(EMBEDDINGS_PATH)
     #df['parsed_embedding'] = df['parsed_embedding'].apply(lambda x: str(list(x)))
     #df.to_csv(EMBEDDINGS_PATH, index=False)
     # Build the index
-    index = build_faiss_index(embedding_matrix)
-    faiss.write_index(index, INDEX_PATH)
+#    index = build_faiss_index(embedding_matrix)
+#    faiss.write_index(index, INDEX_PATH)
+
+
+# Load df
+# df, embedding_matrix = load_embeddings(CSV_PATH)
+
+# Load embeddings
+df = pd.read_pickle(EMBEDDINGS_PATH)
+# Load into FAISS
+index = faiss.read_index(index_path)
 
 
 @app.route('/images/<image_file>')
