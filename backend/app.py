@@ -1,6 +1,7 @@
 # app.py
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from fastapi import FastAPI
 from huggingface_hub import hf_hub_download
 import pandas as pd
 import numpy as np
@@ -10,7 +11,8 @@ import faiss
 from image_search import build_faiss_index, load_embeddings, find_similar_images
 
 
-app = Flask(__name__)
+#app = Flask(__name__)
+app = FastAPI()
 CORS(app)  # allow frontend calls
 
 INDEX_FILE = "index.faiss"
