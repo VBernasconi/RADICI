@@ -72,6 +72,10 @@
             color: rgb(88, 86, 86);
             font: 12px 'Helvetica Neue'
         }
+        #type-filter{
+            position: fixed;
+            top: 0;
+        }
     </style>
 </head>
 <body>
@@ -81,14 +85,86 @@
         <div id="results"></div>
         <button type="button" id="close_metamotor" class="btn btn-outline-secondary">Chiudi</button>
     </div>
+    <div id="type-filter" style="margin-bottom: 1rem;"></div>
 
 
     <!-- jQuery must come first -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
  
     <script>
-        function setupURL(archive, id){
+        function jitterDuplicateCoordinates(geojson, maxOffset = 0.0005) {
+            const seen = new Map();
+            
+            geojson.features.forEach(feature => {
+                 const coords = feature.geometry.coordinates;
+                 const key = coords.join(',');
+                 
+                 if (seen.has(key)) {
+                     const count = seen.get(key) + 1;
+                     seen.set(key, count);
+                     
+                     // Random angle and radius (within a circle)
+                     const angle = Math.random() * 2 * Math.PI;
+                     const radius = Math.sqrt(Math.random()) * maxOffset; // sqrt for uniform distribution
+                     
+                     const dx = Math.cos(angle) * radius;
+                     const dy = Math.sin(angle) * radius;
+                     
+                     feature.geometry.coordinates = [
+                                                     coords[0] + dx,
+                                                     coords[1] + dy
+                                                     ];
+                 } else {
+                        seen.set(key, 0);
+                 }
+            });
+                 
+            return geojson;
+        }
+    
+        function createTypeFilterUI(types, layer_id) {
+            const container = document.getElementById('type-filter');
+            container.innerHTML = ''; // Clear existing buttons if reloaded
 
+            const allTypesLabel = document.createElement('label');
+            allTypesLabel.style.marginRight = '10px';
+
+            const allRadio = document.createElement('input');
+            allRadio.type = 'radio';
+            allRadio.name = 'type';
+            allRadio.value = 'all';
+            allRadio.checked = true; // Select "all" by default
+            allRadio.onchange = () => {
+                map.setFilter(layer_id, ['has', 'type']); // show all features with a 'type'
+            };
+
+            allTypesLabel.appendChild(allRadio);
+            allTypesLabel.appendChild(document.createTextNode(' All'));
+            container.appendChild(allTypesLabel);
+
+            // Add a radio for each individual type
+            types.forEach(type => {
+                const label = document.createElement('label');
+                label.style.marginRight = '10px';
+
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'type';
+                radio.value = type;
+                radio.onchange = () => {
+                    console.log(`Selected type: ${type}`); // Add thi
+                    map.setFilter(layer_id, ['==', ['get', 'type'], type]);
+                };
+
+                label.appendChild(radio);
+                label.appendChild(document.createTextNode(` ${type}`));
+                container.appendChild(label);
+            });
+            // Set default filter on the map layer to show all
+            map.setFilter(layer_id, ['has', 'type']);
+        }
+
+        function setupURL(archive, id){
             switch (archive) {
                 case "lodovico":
                     url = `https://lodovico.medialibrary.it/media/schedadl.aspx?id=${id}`
@@ -99,9 +175,9 @@
                 default:
                     url = feature.properties.url;
             }
-
             return url
         }
+        const types = ['document', 'photography', 'painting', 'drawing', 'music', 'print', 'sculpture', 'map', 'object']; // your custom types
 
         mapboxgl.accessToken = 'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
 
@@ -124,13 +200,21 @@
         map = "Cartografia manoscritta, mappe"
         object = "oggetti museali, opere d'arte, unità archivistiche, nan"
         */
-        map.on('load', () => {
+        map.on('load', async () => {
+           // Load your GeoJSON
+           // const response = await fetch('objects_types_and_coordinates.geojson');
+           // const data = await response.json();
+           const response = await fetch('objects_types_and_coordinates.geojson')
+           const rawGeoJSON = await response.json();
+           
+           const data = jitterDuplicateCoordinates(rawGeoJSON);
+               
             // Add a new source from our GeoJSON data and
             // set the 'cluster' option to true. GL-JS will
             // add the point_count property to your source data.
             map.addSource('objects', {
                 type: 'geojson',
-                data: 'objects_types_and_coordinates.geojson',
+                data: data,
                 cluster: true,
                 clusterMaxZoom: 14, // Max zoom to cluster points on
                 clusterRadius: 50, // Radius of each cluster when clustering points (defaults to 50)
@@ -148,6 +232,7 @@
                 }
             });
 
+
             map.addLayer({
                 id: 'clusters',
                 type: 'circle',
@@ -155,10 +240,6 @@
                 filter: ['has', 'point_count'],
                 paint: {
                     // Use step expressions (https://docs.mapbox.com/style-spec/reference/expressions/#step)
-                    // with three steps to implement three types of circles:
-                    //   * Blue, 20px circles when point count is less than 100
-                    //   * Yellow, 30px circles when point count is between 100 and 750
-                    //   * Pink, 40px circles when point count is greater than or equal to 750
                     'circle-color': ['step', ['get', 'point_count'], '#929292', 100, '#929292', 750, '#929292'],
                     'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40]
                 }
@@ -309,6 +390,9 @@
             map.on('mouseleave', 'unclustered-point', () => {
                 map.getCanvas().style.cursor = '';
             });
+
+            // Create UI controls
+            createTypeFilterUI(types, 'unclustered-point');
         });
 
         async function searchSimilarObjects(imageId) {
