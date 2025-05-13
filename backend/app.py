@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from huggingface_hub import hf_hub_download
 import pandas as pd
 import numpy as np
@@ -13,7 +14,15 @@ from image_search import build_faiss_index, load_embeddings, find_similar_images
 
 #app = Flask(__name__)
 app = FastAPI()
-CORS(app)  # allow frontend calls
+#CORS(app)  # allow frontend calls
+# CORS config
+app.add_middleware(
+                   CORSMiddleware,
+                   allow_origins=["*"],  # Adjust this in production
+                   allow_credentials=True,
+                   allow_methods=["*"],
+                   allow_headers=["*"],
+                   )
 
 INDEX_FILE = "index.faiss"
 CSV_FILE = "dataset_with_embeddings.csv"
