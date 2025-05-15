@@ -122,6 +122,58 @@
             return geojson;
         }
     
+        function updateClusterTextField(selectedType) {
+            if (!map.getLayer('cluster-count')) return;
+
+            const typeToProperty = {
+                document: 'document_count',
+                drawing: 'drawing_count',
+                manuscript: 'manuscript_count',
+                // painting: 'painting_count',
+                photography: 'photography_count',
+                music: 'music_count',
+                print: 'print_count',
+                //sculpture: 'sculpture_count',
+                map: 'map_count',
+                object: 'object_count',
+            };
+
+            const textField = selectedType
+                ? ['to-string', ['get', typeToProperty[selectedType]]]
+                : ['to-string', ['get', 'point_count']];
+
+            map.setLayoutProperty('cluster-count', 'text-field', textField);
+        }
+
+        function updateMapFilters(selectedType) {
+            //if (!map.getLayer('unclustered-point') || !map.getLayer('clusters')) return;
+            if (!map.getLayer('unclustered-point') || !map.getLayer('clusters') || !map.getLayer('cluster-count')) {
+                return;
+            }
+            // Set filter for unclustered points
+            const unclusteredFilter = selectedType
+                ? ['all', ['!', ['has', 'point_count']], ['==', ['get', 'type'], selectedType]]
+                : ['!', ['has', 'point_count']];
+            map.setFilter('unclustered-point', unclusteredFilter);
+
+            // 2. Filter clusters based on count of selected type
+            const clusterFilter = selectedType
+                ? ['>', ['get', `${selectedType}_count`], 0]
+                : ['has', 'point_count']; // default: show all clusters
+            map.setFilter('clusters', clusterFilter);
+            map.setFilter('cluster-count', clusterFilter); // also apply to cluster text
+             // Update cluster number to match selected type
+            updateClusterTextField(selectedType);
+            // Update circle size dynamically
+            const radiusProperty = selectedType ? `${selectedType}_count` : 'point_count';
+            const radiusExpression = [
+                'step',
+                ['get', radiusProperty],
+                20, 10, 25, 30, 30, 50, 40
+            ];
+            map.setPaintProperty('clusters', 'circle-radius', radiusExpression);
+        }
+
         function createTypeFilterUI(types, layer_id) {
             const container = document.getElementById('type-filter');
             container.innerHTML = ''; // Clear existing buttons if reloaded
@@ -135,7 +187,10 @@
             allRadio.value = 'all';
             allRadio.checked = true; // Select "all" by default
             allRadio.onchange = () => {
-                map.setFilter(layer_id, ['has', 'type']); // show all features with a 'type'
+                // map.setFilter(layer_id, ['has', 'type']); // show all features with a 'type'
+                // 15.05 map.setFilter('unclustered-point', ['has', 'type']);
+                // 15.05 map.setFilter('clusters', null);
+                updateMapFilters(null); // No filter
             };
 
             allTypesLabel.appendChild(allRadio);
@@ -153,7 +208,13 @@
                 radio.value = type;
                 radio.onchange = () => {
                     console.log(`Selected type: ${type}`); // Add thi
-                    map.setFilter(layer_id, ['==', ['get', 'type'], type]);
+                    //map.setFilter(layer_id, ['==', ['get', 'type'], type]);
+                    // Update filter for unclustered points
+                    // 15.05 map.setFilter('unclustered-point', ['==', ['get', 'type'], type]);
+
+                    // Update filter for clusters: show only clusters that contain at least one item of selected type
+                    // 15.05 map.setFilter('clusters', ['==', ['get', `is_${type}`], true]);
+                    updateMapFilters(type);
                 };
 
                 label.appendChild(radio);
@@ -161,7 +222,8 @@
                 container.appendChild(label);
             });
             // Set default filter on the map layer to show all
-            map.setFilter(layer_id, ['has', 'type']);
+            // 15.05 map.setFilter(layer_id, ['has', 'type']);
+            updateMapFilters(null);
         }
 
         function setupURL(archive, id){
@@ -177,14 +239,14 @@
             }
             return url
         }
-        const types = ['document', 'photography', 'painting', 'drawing', 'music', 'print', 'sculpture', 'map', 'object']; // your custom types
+        const types = ['document', 'photography', 'drawing', 'music', 'print', 'map', 'object']; // your custom types REMOVED 'painting','sculpture'
 
-        mapboxgl.accessToken = 'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
+        mapboxgl.accessToken = 'pk.eyJ1Ijoibmljb2xvc2luYXRyYSIsImEiOiJjbGs4ZTd0aWowaXNqM2ZybzEzYmplaGF3In0.zJYGpj2MF2Nw8M8XHuXc8Q'; //'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
 
         const map = new mapboxgl.Map({
             container: 'map',
             // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
-            style: 'mapbox://styles/mapbox/light-v11',
+            style: 'mapbox://styles/nicolosinatra/cmanmu2qc00f801s52qmxc3l9', //'mapbox://styles/mapbox/light-v11',
             center: [11.327591, 44.498955],
             zoom: 7.2
         });
@@ -219,16 +281,16 @@
                 clusterMaxZoom: 14, // Max zoom to cluster points on
                 clusterRadius: 50, // Radius of each cluster when clustering points (defaults to 50)
                 clusterProperties: {
-                    is_document: ["any", ["==", ["get", "type"], 'document'], "false"],
-                    is_manuscript: ["any", ["==", ["get", "type"], 'manuscript'], "false"],
-                    is_photography: ["any", ["==", ["get", "type"], 'photography'], "false"],
-                    is_painting: ["any", ["==", ["get", "type"], 'painting'], "false"],
-                    is_music: ["any", ["==", ["get", "type"], 'music'], "false"],
-                    is_drawing: ["any", ["==", ["get", "type"], 'drawing'], "false"],
-                    is_print: ["any", ["==", ["get", "type"], 'print'], "false"],
-                    is_sculpture: ["any", ["==", ["get", "type"], 'sculpture'], "false"],
-                    is_map: ["any", ["==", ["get", "type"], 'map'], "false"],
-                    is_object: ["any", ["==", ["get", "type"], 'object'], "false"],
+                    document_count: ["+", ["case", ["==", ["get", "type"], "document"], 1, 0]],
+                    drawing_count: ["+", ["case", ["==", ["get", "type"], "drawing"], 1, 0]],
+                    manuscript_count: ["+", ["case", ["==", ["get", "type"], "manuscript"], 1, 0]],
+                    painting_count: ["+", ["case", ["==", ["get", "type"], "painting"], 1, 0]],
+                    photography_count: ["+", ["case", ["==", ["get", "type"], "photography"], 1, 0]],
+                    music_count: ["+", ["case", ["==", ["get", "type"], "music"], 1, 0]],
+                    print_count: ["+", ["case", ["==", ["get", "type"], "print"], 1, 0]],
+                    scultpure_count: ["+", ["case", ["==", ["get", "type"], "sculpture"], 1, 0]],
+                    map_count: ["+", ["case", ["==", ["get", "type"], "map"], 1, 0]],
+                    object_count: ["+", ["case", ["==", ["get", "type"], "object"], 1, 0]],
                 }
             });
 
@@ -241,7 +303,8 @@
                 paint: {
                     // Use step expressions (https://docs.mapbox.com/style-spec/reference/expressions/#step)
                     'circle-color': ['step', ['get', 'point_count'], '#929292', 100, '#929292', 750, '#929292'],
-                    'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40]
+                    'circle-radius': ['step', ['get', 'point_count'], 20, 10, 25, 30, 30, 50, 40]
+//20, 100, 30, 750, 40]
                 }
             });
 
@@ -333,7 +396,7 @@
                 new mapboxgl.Popup()
                     .setLngLat(coordinates)
                     .setHTML(`
-                        <img id="objectImage" src="http://192.168.249.189:5030/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
+                        <img id="objectImage" src="http://130.136.2.161:8080/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
                         <div class="accordion accordion-flush" id="accordionFlushExample">
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="flush-headingOne">
@@ -450,7 +513,7 @@
                 const parts = img_path.split("/");
                 const img_file = parts[parts.length - 1];  
 
-                img.src = `http://192.168.249.189:5030/images/${img_file}`;
+                img.src = `http://130.136.2.161:8080/images/${img_file}`; //`http://192.168.249.189:5030/images/${img_file}`;
                 img.alt = item.title || item.id;
                 img.style.width = '100px';
 
