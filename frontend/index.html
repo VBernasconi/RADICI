@@ -63,7 +63,7 @@
             height: 100%;
             background: #fff;
             box-shadow: -2px 0 5px rgba(0,0,0,0.3);
-            padding: 10px;
+            padding: 40px 10px 10px 10px; 
             overflow-y: auto;
             transition: right 0.3s ease;
             z-index: 2;
@@ -74,16 +74,136 @@
         }
         #type-filter{
             position: fixed;
-            top: 0;
+            top: 2;
+            left: 2;
+            margin: 10px;
+        }
+
+        #type-filter-wrapper {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            /*border-radius: 8px*/
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: fit-content;
+            margin: 10px;
+        }
+
+        .icon-column {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        .type-icon {
+            margin: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s ease;
+        }
+
+        .type-icon.selected {
+            opacity: 1;
+        }
+
+        .type-icon:hover {
+            opacity: 0.8;
+        }
+
+        .type-icon .label {
+            font-size: 12px;
+            color: #333;
+        }
+
+        .type-icon.all {
+            color: orange;
+            opacity: 1;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        .result-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            margin-right: 10px;
+            flex-shrink: 0;
+            transition: transform 0.3s ease; /* Smooth transition */
+        }
+        .result-image:hover {
+            transform: scale(1.1); /* Slight zoom effect */
+            z-index: 2;
+        }
+        .result-info {
+            flex: 1;
+            font-size: 12px;
+            color: #555;
+        }
+        .close-icon {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #888;
+            cursor: pointer;
+            z-index: 10;
+            user-select: none;
+            transition: color 0.2s ease;
+        }
+        .close-icon:hover {
+            color: #333;
+        }
+        .accordion-button {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            background-image: none;   
+            justify-content: center;       /* Center the icon */
+            padding-left: 0;               /* Optional: tighten spacing */
+            padding-right: 0;
+        }
+        .accordion-button::after {
+            color: #888;
+            content: "−";                  /* Show minus when open */
+            font-size: 24px;
+            background-image: none !important; ;        /* Remove Bootstrap caret */
+            margin-left: 0;
+        }
+        .accordion-button.collapsed::after {
+            color: #888;
+            background-image: none;   
+            content: "+";                  /* Show plus when closed */
+        }
+        .accordion-body {
+            padding-top: 1rem;
+        }
+        .row{
+            margin-right: 0px;
+        }
+        #objectImage{
+            margin: 1rem;
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="sidebar_metamotor">
+        <span id="close_metamotor" class="close-icon">&times;</span>
         <h2>Oggetti simili</h2>
         <div id="results"></div>
-        <button type="button" id="close_metamotor" class="btn btn-outline-secondary">Chiudi</button>
     </div>
     <div id="type-filter" style="margin-bottom: 1rem;"></div>
 
@@ -92,6 +212,11 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
  
     <script>
+        const serverHost = window.location.hostname;
+        const serverPort = '50001';
+        // const serverURL = `https://${serverHost}:${serverPort}`;
+        const serverURL = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
+
         function jitterDuplicateCoordinates(geojson, maxOffset = 0.0005) {
             const seen = new Map();
             
@@ -118,7 +243,7 @@
                         seen.set(key, 0);
                  }
             });
-                 
+         
             return geojson;
         }
     
@@ -131,7 +256,7 @@
                 manuscript: 'manuscript_count',
                 // painting: 'painting_count',
                 photography: 'photography_count',
-                music: 'music_count',
+                audio: 'audio_count',
                 print: 'print_count',
                 //sculpture: 'sculpture_count',
                 map: 'map_count',
@@ -169,60 +294,75 @@
             const radiusExpression = [
                 'step',
                 ['get', radiusProperty],
-                20, 10, 25, 30, 30, 50, 40
+                20, 10, 25, 30, 30, 50, 40 //20, 10, 25, 30, 30, 50, 40
             ];
-            map.setPaintProperty('clusters', 'circle-radius', radiusExpression);
+            //map.setPaintProperty('clusters', 'circle-radius', radiusExpression);
+            map.setLayoutProperty('clusters', 'icon-size', [
+                'interpolate',
+                ['linear'],
+                ['get', selectedType ? `${selectedType}_count` : 'point_count'],
+                1, 0.05,
+                100, 0.05,
+                1000, 0.09
+            ]);
         }
-
+        
         function createTypeFilterUI(types, layer_id) {
             const container = document.getElementById('type-filter');
-            container.innerHTML = ''; // Clear existing buttons if reloaded
+            container.innerHTML = ''; // Clear existing buttons
 
-            const allTypesLabel = document.createElement('label');
-            allTypesLabel.style.marginRight = '10px';
+            let selectedType = 'all';
 
-            const allRadio = document.createElement('input');
-            allRadio.type = 'radio';
-            allRadio.name = 'type';
-            allRadio.value = 'all';
-            allRadio.checked = true; // Select "all" by default
-            allRadio.onchange = () => {
-                // map.setFilter(layer_id, ['has', 'type']); // show all features with a 'type'
-                // 15.05 map.setFilter('unclustered-point', ['has', 'type']);
-                // 15.05 map.setFilter('clusters', null);
-                updateMapFilters(null); // No filter
+            const iconContainer = document.createElement('div');
+            iconContainer.className = 'icon-column';
+
+            const createIcon = (type, label) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'type-icon';
+                wrapper.dataset.type = type;
+
+                if (type === 'all') {
+                    wrapper.classList.add('all');
+                    wrapper.textContent = 'All';
+                } else {
+                    const icon = document.createElement('div');
+                    icon.innerHTML = `<img src="img/icons/${type}-icon.png" alt="${label}" style="width: 24px;">`;
+                    wrapper.appendChild(icon);
+
+                    const labelDiv = document.createElement('div');
+                    labelDiv.className = 'label';
+                    labelDiv.textContent = label;
+                    wrapper.appendChild(labelDiv);
+                }
+
+                if (type === selectedType) {
+                    wrapper.classList.add('selected');
+                }
+
+                wrapper.addEventListener('click', () => {
+                    selectedType = type;
+                    document.querySelectorAll('.type-icon').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    wrapper.classList.add('selected');
+                    updateMapFilters(type === 'all' ? null : type);
+                });
+
+                return wrapper;
             };
 
-            allTypesLabel.appendChild(allRadio);
-            allTypesLabel.appendChild(document.createTextNode(' All'));
-            container.appendChild(allTypesLabel);
-
-            // Add a radio for each individual type
+            iconContainer.appendChild(createIcon('all', 'All'));
             types.forEach(type => {
-                const label = document.createElement('label');
-                label.style.marginRight = '10px';
-
-                const radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = 'type';
-                radio.value = type;
-                radio.onchange = () => {
-                    console.log(`Selected type: ${type}`); // Add thi
-                    //map.setFilter(layer_id, ['==', ['get', 'type'], type]);
-                    // Update filter for unclustered points
-                    // 15.05 map.setFilter('unclustered-point', ['==', ['get', 'type'], type]);
-
-                    // Update filter for clusters: show only clusters that contain at least one item of selected type
-                    // 15.05 map.setFilter('clusters', ['==', ['get', `is_${type}`], true]);
-                    updateMapFilters(type);
-                };
-
-                label.appendChild(radio);
-                label.appendChild(document.createTextNode(` ${type}`));
-                container.appendChild(label);
+                iconContainer.appendChild(createIcon(type, type));
             });
-            // Set default filter on the map layer to show all
-            // 15.05 map.setFilter(layer_id, ['has', 'type']);
+
+            const backgroundWrapper = document.createElement('div');
+            backgroundWrapper.id = 'type-filter-wrapper';
+            backgroundWrapper.appendChild(iconContainer);
+
+            container.appendChild(backgroundWrapper);
+
+            // Set default filter
             updateMapFilters(null);
         }
 
@@ -239,7 +379,8 @@
             }
             return url
         }
-        const types = ['document', 'photography', 'drawing', 'music', 'print', 'map', 'object']; // your custom types REMOVED 'painting','sculpture'
+        const types = ['document', 'photography', 'drawing', 'audio', 'print', 'map', 'object', 'manuscript']; // your custom types REMOVED 'painting','sculpture'
+
 
         mapboxgl.accessToken = 'pk.eyJ1Ijoibmljb2xvc2luYXRyYSIsImEiOiJjbGs4ZTd0aWowaXNqM2ZybzEzYmplaGF3In0.zJYGpj2MF2Nw8M8XHuXc8Q'; //'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
 
@@ -250,11 +391,12 @@
             center: [11.327591, 44.498955],
             zoom: 7.2
         });
+
         /*
         written document = "elaborati tecnici, Documento archivistico, libri e opuscoli, periodici,"
         photography = "forografie, Fotografia"
         painting = "affresco, dipinto, Affresco, Dipinto"
-        music = "fonti musicali"
+        audio = "fonti audioali"
         drawing = "disegni e incisioni, Disegno, Disegno di architettura, Cartolina"
         print = "Stampa, documenti a stampa, Ritaglio di stampa"
         scultpure = "Scultura, Elemento architettonico"
@@ -270,6 +412,19 @@
            const rawGeoJSON = await response.json();
            
            const data = jitterDuplicateCoordinates(rawGeoJSON);
+
+            types.forEach(type => {
+                const iconPath = `img/icons/${type}-icon.png`; // Adjust path as needed
+                map.loadImage(iconPath, (error, image) => {
+                    if (error) {
+                        console.error(`Error loading image for ${type}:`, error);
+                        return;
+                    }
+                    if (!map.hasImage(`${type}-icon`)) {
+                        map.addImage(`${type}-icon`, image);
+                    }
+                });
+            });
                
             // Add a new source from our GeoJSON data and
             // set the 'cluster' option to true. GL-JS will
@@ -286,7 +441,7 @@
                     manuscript_count: ["+", ["case", ["==", ["get", "type"], "manuscript"], 1, 0]],
                     painting_count: ["+", ["case", ["==", ["get", "type"], "painting"], 1, 0]],
                     photography_count: ["+", ["case", ["==", ["get", "type"], "photography"], 1, 0]],
-                    music_count: ["+", ["case", ["==", ["get", "type"], "music"], 1, 0]],
+                    audio_count: ["+", ["case", ["==", ["get", "type"], "audio"], 1, 0]],
                     print_count: ["+", ["case", ["==", ["get", "type"], "print"], 1, 0]],
                     scultpure_count: ["+", ["case", ["==", ["get", "type"], "sculpture"], 1, 0]],
                     map_count: ["+", ["case", ["==", ["get", "type"], "map"], 1, 0]],
@@ -297,14 +452,102 @@
 
             map.addLayer({
                 id: 'clusters',
-                type: 'circle',
+                type: 'symbol',
                 source: 'objects',
                 filter: ['has', 'point_count'],
-                paint: {
-                    // Use step expressions (https://docs.mapbox.com/style-spec/reference/expressions/#step)
-                    'circle-color': ['step', ['get', 'point_count'], '#929292', 100, '#929292', 750, '#929292'],
-                    'circle-radius': ['step', ['get', 'point_count'], 20, 10, 25, 30, 30, 50, 40]
-//20, 100, 30, 750, 40]
+                layout: {
+                    'icon-image': [
+                        'case',
+                        ['>', ['get', 'document_count'], ['max',
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'map_count'],
+                            ['get', 'object_count']
+                        ]], 'document-icon',
+                        
+                        ['>', ['get', 'drawing_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'map_count'],
+                            ['get', 'object_count']
+                        ]], 'drawing-icon',
+
+                        ['>', ['get', 'photography_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'map_count'],
+                            ['get', 'object_count']
+                        ]], 'photography-icon',
+
+                        ['>', ['get', 'audio_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'print_count'],
+                            ['get', 'map_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'object_count']
+                        ]], 'audio-icon',
+
+                        ['>', ['get', 'print_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'map_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'object_count']
+                        ]], 'print-icon',
+
+                        ['>', ['get', 'map_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'object_count']
+                        ]], 'map-icon',
+
+                        ['>', ['get', 'object_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'manuscript_count'],
+                            ['get', 'map_count']
+                        ]], 'object-icon',
+
+                        ['>', ['get', 'manuscript_count'], ['max',
+                            ['get', 'document_count'],
+                            ['get', 'drawing_count'],
+                            ['get', 'photography_count'],
+                            ['get', 'audio_count'],
+                            ['get', 'print_count'],
+                            ['get', 'map_count']
+                        ]], 'manuscript-icon',
+
+                        'default-icon' // fallback
+                    ],
+                    'icon-size': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'point_count'],
+                        1, 0.01,
+                        100, 0.05,
+                        1000, 0.09
+                    ],
+                    'icon-allow-overlap': true
                 }
             });
 
@@ -319,20 +562,19 @@
                     'text-size': 12
                 },
                 paint: {
-                    "text-color": "#ffffff"
+                    "text-color": "#929292"
                 }
             });
 
             map.addLayer({
                 id: 'unclustered-point',
-                type: 'circle',
+                type: 'symbol',
                 source: 'objects',
                 filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-color': '#929292',
-                    'circle-radius': 4,
-                    'circle-stroke-width': 1,
-                    'circle-stroke-color': '#fff'
+                layout: {
+                    'icon-image': ['concat', ['get', 'type'], '-icon'],
+                    'icon-size': 0.05,
+                    'icon-allow-overlap': true
                 }
             });
 
@@ -390,39 +632,44 @@
                 }
 
                 const imageId = feature.properties.id;  // make sure your GeoJSON has this field
-                //http://192.168.249.189:5030/images/${imageId}
               
-
+                //http://130.136.2.161:8080
                 new mapboxgl.Popup()
                     .setLngLat(coordinates)
                     .setHTML(`
-                        <img id="objectImage" src="http://130.136.2.161:8080/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
+                        <img id="objectImage" src="${serverUrl}/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
                         <div class="accordion accordion-flush" id="accordionFlushExample">
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="flush-headingOne">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapseOne" aria-expanded="false" aria-controls="flush-collapseOne">
-                                        Materiale Digitalizzato
+                                    <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#flush-collapseOne"
+                                        aria-expanded="false"
+                                        aria-controls="flush-collapseOne">
+                              
                                     </button>
                                 </h2>
                                 <div id="flush-collapseOne" class="accordion-collapse collapse" aria-labelledby="flush-headingOne" data-bs-parent="#accordionFlushExample">
                                     <div class="accordion-body">
                                         <p>
-                                        Nome: ${title}<br>
-                                        Autore: ${author}<br>
-                                        Data: ${date}<br>
-                                        Collezione: ${archive}<br>
-                                        Luogo di conservazione: ${place}
+                                        <strong>${title}</strong><br>
+                                        ${author || ''}<br>
+                                        ${date}<br>
+                                        <strong>Fondo</strong> ${archive}<br>
+                                        Current location: ${place}
                                         </p>
                                     </div>
+                                    <div class="row">
+                                        <div>
+                                            <a class="btn btn-outline-secondary" href="${url}" target="_blank" role="button">Lo trovi qui</a>
+                                            <button type="button" id="open_metamotor" class="btn btn-outline-secondary">Vedi simili</button>
+                                        </div>
+                                    </div>
                                 </div>
+                                
                             </div>
                         </div>
-                        <div class="row">
-                            <div>
-                                <a class="btn btn-outline-secondary" href="${url}" target="_blank" role="button">Lo trovi qui</a>
-                                <button type="button" id="open_metamotor" class="btn btn-outline-secondary">Vedi simili</button>
-                            </div>
-                        </div>
+                        
                         `
                     )
                     .addTo(map);
@@ -462,7 +709,7 @@
             document.getElementById('results').innerHTML = 'Loading...';
 
             try {
-                const response = await fetch('http://192.168.249.189:5030/search', {
+                const response = await fetch(`${serverURL}/search`,{
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image_id: imageId })
@@ -478,7 +725,9 @@
                 document.getElementById('results').innerHTML = 'Error fetching results.';
             }
         }
-
+        /**
+         * Display rsesults for image similarity search
+         * */
         function displayResults(results) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
@@ -489,7 +738,6 @@
             }
 
             results.forEach(item => {
-                console.log(item)
                 /*
                     author: "Cristianopulo, Giovanni Domenico"
                     date: "1806"
@@ -498,39 +746,50 @@
                     title: "Lettera di Cristianopulo, Giovanni Domenico a Tondini, Giovanni Battista"
                     url: "https://mlolassets.s3.eu-south-1.amazonaws.com/lodovico/2880f1f9-fe5d-4b4f-bf82-5dd8a1336335.jpg"
                 */
-                const div = document.createElement('div');
-                div.style.marginBottom = '10px';
+                const itemContainer = document.createElement('div');
+                itemContainer.className = 'result-item';
 
-                // Create the <a> tag and set its href
+                // Image section
                 const link = document.createElement('a');
 
                 link.href = setupURL(item.archive, item.id);
                 link.target = '_blank'; // Opens the link in a new tab
 
                 const img = document.createElement('img');
-
                 const img_path = item.img_path;
                 const parts = img_path.split("/");
                 const img_file = parts[parts.length - 1];  
 
-                img.src = `http://130.136.2.161:8080/images/${img_file}`; //`http://192.168.249.189:5030/images/${img_file}`;
+                img.src = `${serverURL}/images/${img_file}`;
                 img.alt = item.title || item.id;
-                img.style.width = '100px';
+                img.className = 'result-image';
 
                 // Add the image inside the anchor tag
                 link.appendChild(img);
 
-                const caption = document.createElement('p');
-                caption.textContent = `${item.title || item.id}`;
+                const caption = document.createElement('div');
+                caption.className = 'result-info';
 
-                div.appendChild(link);
-                div.appendChild(caption);
-                resultsDiv.appendChild(div);
+                const title = document.createElement('p');
+                title.innerHTML = `<strong>${item.title || item.id}</strong>`;
+                const author = document.createElement('p');
+                author.textContent = item.author || '';
+                const date = document.createElement('p');
+                date.textContent = item.date || '';
+
+                caption.appendChild(title);
+                caption.appendChild(author);
+                caption.appendChild(date);
+
+                // Combine both parts
+                itemContainer.appendChild(link);
+                itemContainer.appendChild(caption);
+
+                resultsDiv.appendChild(itemContainer);
             });
         }
         
 
-    </script>
-    
+    </script> 
 </body>
 </html>
