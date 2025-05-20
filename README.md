@@ -11,16 +11,20 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 .                  
 ├── backend
 │   ├── app.py        
-│   └── image_search.py    
-│   └── requirements.txt
-│   └── dataset_with_embeddings.csv
-│   ├── downloaded_images
+│   ├── image_search.py    
+│   ├── requirements.txt
+│   ├── dataset_with_embeddings.csv
+│   └── downloaded_images
 │       ├── img_00        
 │       └── img_01    
 │       └── ...                   
 ├── frontend
 │   ├── index.html       
-│   └── objects_types_and_coordinates.geojson                      
+│   ├── objects_types_and_coordinates.geojson
+│   └── img
+│       └── icons        
+│           └── documents-icon.png    
+│           └── ...                      
 └── README.md
 ```
 
