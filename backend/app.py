@@ -66,5 +66,6 @@ def search():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5030)
+    # app.run(host='0.0.0.0', port=50001)
+    app.run(host='0.0.0.0', port=50001, ssl_context=('cert.pem', 'key.pem'))
 
