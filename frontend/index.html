@@ -72,6 +72,11 @@
             color: rgb(88, 86, 86);
             font: 12px 'Helvetica Neue'
         }
+        #sidebar_metamotor h2{
+            color: rgb(88, 86, 86);
+            font: 20px 'Helvetica Neue';
+            margin-top: 20px;
+        }
         #type-filter{
             position: fixed;
             top: 2;
@@ -123,7 +128,7 @@
         }
 
         .type-icon.all {
-            color: orange;
+            color: #FB5E13;
             opacity: 1;
         }
 
@@ -134,7 +139,10 @@
             border-bottom: 1px solid #ddd;
             padding-bottom: 10px;
         }
-
+        .result-item a{
+            color: #FB5E13;
+            
+        }
         .result-image {
             width: 80px;
             height: 80px;
@@ -196,6 +204,37 @@
         #objectImage{
             margin: 1rem;
         }
+        #search-box {
+            position: absolute;
+            top: 10px;
+            /*left: 10px;*/
+            right: 10px;
+            padding: 6px 10px;
+            z-index: 10;
+            width: 250px;
+            background: white;
+            border: 1px solid #FB5E13;
+            border-radius: 4px;
+        }
+
+        #search-results {
+            position: absolute;
+            top: 40px;
+            left: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            z-index: 10;
+            width: 250px;
+        }
+
+        #search-results li {
+            padding: 5px 10px;
+            border-bottom: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
@@ -207,6 +246,8 @@
     </div>
     <div id="type-filter" style="margin-bottom: 1rem;"></div>
 
+    <input type="text" id="search-box" placeholder="Search by keyword..." />
+    <ul id="search-results"></ul>
 
     <!-- jQuery must come first -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
@@ -217,6 +258,28 @@
         // const serverURL = `https://${serverHost}:${serverPort}`;
         const serverURL = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
 
+        const singleTypeIconExpression = (type) => type ? `${type}-icon` : 'default-icon';
+
+        let keywordIndex = {};
+        let geojsonData = {};
+        let currentPopup = null;
+
+        async function keywordSearch(input){
+            try {
+                const response = await fetch(`${serverURL}/search_keywords?q=${encodeURIComponent(input)}`);
+                const data = await response.json();
+                console.log(data);
+                displayResults(data);
+                //map.getSource('your-data-source-id').setData(data);
+            } catch (err) {
+                console.error('Search API error:', err);
+            }
+        }
+        /**
+         * Manage the duplicate coordinates and relocate coordinates to avoid overlap
+         * @param{json file} geojson — the original geojson file holding coordinates information
+         * @param{float} maxOffset — the offset to space the coordinates around the original position
+        */
         function jitterDuplicateCoordinates(geojson, maxOffset = 0.0005) {
             const seen = new Map();
             
@@ -247,20 +310,21 @@
             return geojson;
         }
     
+        /**
+         * Update the text on top of the cluster icon.
+         * The text displays the amount of objects in the cluster
+         * @param{string} selectedType — the typology of the objects
+        */
         function updateClusterTextField(selectedType) {
             if (!map.getLayer('cluster-count')) return;
 
-            const typeToProperty = {
-                document: 'document_count',
-                drawing: 'drawing_count',
-                manuscript: 'manuscript_count',
-                // painting: 'painting_count',
+            const typeToProperty = { 
+                publishing: 'publishing_count',
+                music: 'music_count',
+                architecture: 'architecture_count',
+                audiovisual: 'audiovisual_count',
                 photography: 'photography_count',
-                audio: 'audio_count',
-                print: 'print_count',
-                //sculpture: 'sculpture_count',
-                map: 'map_count',
-                object: 'object_count',
+                design: 'design_count',
             };
 
             const textField = selectedType
@@ -270,33 +334,38 @@
             map.setLayoutProperty('cluster-count', 'text-field', textField);
         }
 
+        /**
+         * Update the filter based on the selected type
+         * @param{string} selectedType — the type selected by the user to filter objects
+        */
         function updateMapFilters(selectedType) {
-            //if (!map.getLayer('unclustered-point') || !map.getLayer('clusters')) return;
             if (!map.getLayer('unclustered-point') || !map.getLayer('clusters') || !map.getLayer('cluster-count')) {
                 return;
             }
-            // Set filter for unclustered points
+
+            // Filter unclustered points
             const unclusteredFilter = selectedType
                 ? ['all', ['!', ['has', 'point_count']], ['==', ['get', 'type'], selectedType]]
                 : ['!', ['has', 'point_count']];
             map.setFilter('unclustered-point', unclusteredFilter);
 
-            // 2. Filter clusters based on count of selected type
+            // Filter clusters
             const clusterFilter = selectedType
                 ? ['>', ['get', `${selectedType}_count`], 0]
-                : ['has', 'point_count']; // default: show all clusters
+                : ['has', 'point_count'];
             map.setFilter('clusters', clusterFilter);
-            map.setFilter('cluster-count', clusterFilter); // also apply to cluster text
-             // Update cluster number to match selected type
+            map.setFilter('cluster-count', clusterFilter);
+
+            // Update cluster text
             updateClusterTextField(selectedType);
-            // Update circle size dynamically
-            const radiusProperty = selectedType ? `${selectedType}_count` : 'point_count';
-            const radiusExpression = [
-                'step',
-                ['get', radiusProperty],
-                20, 10, 25, 30, 30, 50, 40 //20, 10, 25, 30, 30, 50, 40
-            ];
-            //map.setPaintProperty('clusters', 'circle-radius', radiusExpression);
+
+            // Update cluster icon-image
+            const iconImageExpr = selectedType
+                ? `${selectedType}-icon`
+                : generateDominantIconExpression(types);
+            map.setLayoutProperty('clusters', 'icon-image', iconImageExpr);
+
+            // Update icon size
             map.setLayoutProperty('clusters', 'icon-size', [
                 'interpolate',
                 ['linear'],
@@ -306,7 +375,34 @@
                 1000, 0.09
             ]);
         }
+
         
+        /**
+         * Generate Mapbox expression to pick the dominant category icon in a cluster
+         * @param {string[]} types - Array of category type strings
+         * @returns {Array} Mapbox 'case' expression
+         */
+        function generateDominantIconExpression(types) {
+            const expression = ['case'];
+
+            for (let i = 0; i < types.length; i++) {
+                const current = types[i];
+                const others = types.filter(t => t !== current);
+                const maxExpression = ['max', ...others.map(t => ['get', `${t}_count`])];
+
+                expression.push(['>', ['get', `${current}_count`], maxExpression]);
+                expression.push(`${current}-icon`);
+            }
+
+            expression.push('default-icon'); // fallback
+            return expression;
+        }
+
+        /**
+         * Filter objects based on type
+         * @param {string} types — the select type based on established typology to classify objects
+         * @param {string} layer_id — the id of the layer holding corresponding objects for the given type
+        */
         function createTypeFilterUI(types, layer_id) {
             const container = document.getElementById('type-filter');
             container.innerHTML = ''; // Clear existing buttons
@@ -366,6 +462,11 @@
             updateMapFilters(null);
         }
 
+        /**
+         * Setup the URL to reach the original archive
+         * @param {string} archive — the name of the archive
+         * @param {string} id — the id of the image
+        */
         function setupURL(archive, id){
             switch (archive) {
                 case "lodovico":
@@ -375,12 +476,218 @@
                     url = `https://www.cdc.classense.ra.it/s/Classense/item/${id}`
                     break;
                 default:
-                    url = feature.properties.url;
+                    url = `http://www.ilcorago.org/benedetti/scheda.asp?id_disco=%27${id}%27`;//feature.properties.url;
             }
             return url
         }
-        const types = ['document', 'photography', 'drawing', 'audio', 'print', 'map', 'object', 'manuscript']; // your custom types REMOVED 'painting','sculpture'
 
+        /*
+         * Display similar images in the different archives used
+         * @param {string} imageId — The id of the select image
+        */
+        async function searchSimilarObjects(imageId) {
+            document.getElementById('results').innerHTML = 'Loading...';
+
+            try {
+                const response = await fetch(`${serverURL}/search`,{
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_id: imageId })
+                });
+                console.log(response);
+                if (!response.ok) throw new Error('Request failed');
+
+                const results = await response.json();
+                displayResults(results);
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('results').innerHTML = 'Nessun oggetto simile è stato trovato.';
+            }
+        }
+        /**
+         * Display Popup for points
+        */
+        function displayPopup(feature, map){
+            //const feature = e.features[0];
+            const coordinates = feature.geometry.coordinates.slice();
+            const date = feature.properties.date;
+            const title = feature.properties.title;
+            const author = feature.properties.author;
+            const place = feature.properties.place;
+            const archive = feature.properties.archive;
+            const img_path = feature.properties.img_path;
+
+            const id = feature.properties.id;
+
+            const url = setupURL(archive, id)
+
+            //Lodovico https://lodovico.medialibrary.it/media/schedadl.aspx?id=15108e57-8688-43a2-b760-871749b5ea97
+            //Classense https://www.cdc.classense.ra.it/s/Classense/item/{id}
+
+            // Split by "/" and get the last part
+            const parts = img_path.split("/");
+            const img_file = parts[parts.length - 1];   
+
+            // Ensure that if the map is zoomed out such that
+            // multiple copies of the feature are visible, the
+            // popup appears over the copy being pointed to.
+            if (['mercator', 'equirectangular'].includes(map.getProjection().name)) {
+                while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+                    coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+                }
+            }
+
+            const imageId = feature.properties.id;  // make sure your GeoJSON has this field
+            // Close existing popup if any
+            if (currentPopup) {
+                currentPopup.remove();
+            }
+            //http://130.136.2.161:8080
+            currentPopup = new mapboxgl.Popup()
+                .setLngLat(coordinates)
+                .setHTML(`
+                    <img id="objectImage" src="${serverURL}/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
+                    <div class="accordion accordion-flush" id="accordionFlushExample">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="flush-headingOne">
+                                <button class="accordion-button collapsed" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#flush-collapseOne"
+                                    aria-expanded="false"
+                                    aria-controls="flush-collapseOne">
+                            
+                                </button>
+                            </h2>
+                            <div id="flush-collapseOne" class="accordion-collapse collapse" aria-labelledby="flush-headingOne" data-bs-parent="#accordionFlushExample">
+                                <div class="accordion-body">
+                                    <p>
+                                    <strong>${title}</strong><br>
+                                    ${author || ''}<br>
+                                    ${date}<br>
+                                    <strong>Fondo</strong> ${archive}<br>
+                                    ${archive.toLowerCase() === 'benedetti' ? 'Recording location' : 'Current location'}: ${place}
+                                    </p>
+                                </div>
+                                <div class="row">
+                                    <div>
+                                        <a class="btn btn-outline-secondary" href="${url}" target="_blank" role="button">Lo trovi qui</a>
+                                        <button type="button" id="open_metamotor" class="btn btn-outline-secondary">Vedi simili</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                    
+                    `
+                )
+                .addTo(map);
+
+            const openSidebarBtn = document.getElementById('open_metamotor');
+            const closeSidebarBtn = document.getElementById('close_metamotor');
+            const sidebar = document.getElementById('sidebar_metamotor');
+
+            openSidebarBtn.addEventListener('click', () => {
+                sidebar.style.right = '0';
+                searchSimilarObjects(id);
+            });
+
+            closeSidebarBtn.addEventListener('click', () => {
+                sidebar.style.right = '-300px';
+            });
+        }
+        /**
+         * Display rsesults for image similarity search
+         * @param {Object[]} results — a list of items representing images
+         * */
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsDiv.textContent = 'No similar objects found.';
+                return;
+            }
+
+            results.forEach(item => {
+                /*
+                    author: "Cristianopulo, Giovanni Domenico"
+                    date: "1806"
+                    id: "2880f1f9-fe5d-4b4f-bf82-5dd8a1336335"
+                    img_path: "downloaded_images/2880f1f9-fe5d-4b4f-bf82-5dd8a1336335.jpg"
+                    title: "Lettera di Cristianopulo, Giovanni Domenico a Tondini, Giovanni Battista"
+                    url: "https://mlolassets.s3.eu-south-1.amazonaws.com/lodovico/2880f1f9-fe5d-4b4f-bf82-5dd8a1336335.jpg"
+                */
+                const itemContainer = document.createElement('div');
+                itemContainer.className = 'result-item';
+                itemContainer.setAttribute('data-id', item.id);
+
+                // Image section
+                const link = document.createElement('a');
+
+                link.href = setupURL(item.archive, item.id);
+                link.target = '_blank'; // Opens the link in a new tab
+
+                const img = document.createElement('img');
+                const img_path = item.img_path;
+                const parts = img_path.split("/");
+                const img_file = parts[parts.length - 1];  
+
+                img.src = `${serverURL}/images/${img_file}`;
+                img.alt = item.title || item.id;
+                img.className = 'result-image';
+
+                
+
+                const caption = document.createElement('div');
+                caption.className = 'result-info';
+
+                const title = document.createElement('p');
+                title.innerHTML = `<strong>${item.title || item.id}</strong>`;
+                const author = document.createElement('p');
+                author.textContent = item.author || '';
+                const date = document.createElement('p');
+                date.textContent = item.date || '';
+                const url_original = document.createElement('p');
+                url_original.innerHTML = `> lo trovi qui`
+
+                // Add the url_original inside the anchor tag
+                link.appendChild(url_original);
+
+                caption.appendChild(title);
+                caption.appendChild(author);
+                caption.appendChild(date);
+                caption.appendChild(link);
+
+                // Combine both parts
+                itemContainer.appendChild(img);
+                itemContainer.appendChild(caption);
+
+                itemContainer.addEventListener('click', () => {
+                    console.log("Getting matched Feature for ",item.id)
+                    const matchedFeature = geojsonData.features.find(f => String(f.properties.id) === String(item.id));
+                    console.log("MatchedFeature found ", matchedFeature)
+                    if (matchedFeature) {
+                        const coords = matchedFeature.geometry.coordinates;
+                        map.flyTo({
+                            center: coords,
+                            zoom: 50
+                        });
+                        map.once('moveend', () => {
+                            displayPopup(matchedFeature, map);
+                        });
+
+                    } else {
+                        console.warn("No matching feature found in geojsonData for ID:", item.id);
+                    }
+                });
+
+                resultsDiv.appendChild(itemContainer);
+            });
+        }
+
+        const types = ['publishing', 'music', 'architecture', 'audiovisual', 'photography', 'design']
 
         mapboxgl.accessToken = 'pk.eyJ1Ijoibmljb2xvc2luYXRyYSIsImEiOiJjbGs4ZTd0aWowaXNqM2ZybzEzYmplaGF3In0.zJYGpj2MF2Nw8M8XHuXc8Q'; //'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
 
@@ -392,19 +699,26 @@
             zoom: 7.2
         });
 
-        /*
-        written document = "elaborati tecnici, Documento archivistico, libri e opuscoli, periodici,"
-        photography = "forografie, Fotografia"
-        painting = "affresco, dipinto, Affresco, Dipinto"
-        audio = "fonti audioali"
-        drawing = "disegni e incisioni, Disegno, Disegno di architettura, Cartolina"
-        print = "Stampa, documenti a stampa, Ritaglio di stampa"
-        scultpure = "Scultura, Elemento architettonico"
-        manuscript = "documenti manoscritti, volumi manoscritti"
-        map = "Cartografia manoscritta, mappe"
-        object = "oggetti museali, opere d'arte, unità archivistiche, nan"
+        /* ORIGINAL TYPOLOGY
+            written document = "elaborati tecnici, Documento archivistico, libri e opuscoli, periodici,"
+            photography = "forografie, Fotografia"
+            painting = "affresco, dipinto, Affresco, Dipinto"
+            audio = "fonti audioali"
+            drawing = "disegni e incisioni, Disegno, Disegno di architettura, Cartolina"
+            print = "Stampa, documenti a stampa, Ritaglio di stampa"
+            scultpure = "Scultura, Elemento architettonico"
+            manuscript = "documenti manoscritti, volumi manoscritti"
+            map = "Cartografia manoscritta, mappe"
+            object = "oggetti museali, opere d'arte, unità archivistiche, nan"
         */
         map.on('load', async () => {
+
+            map.loadImage('img/icons/default-icon.png', (error, image) => {
+                if (error) throw error;
+                if (!map.hasImage('default-icon')) {
+                map.addImage('default-icon', image);
+                }
+            });
            // Load your GeoJSON
            // const response = await fetch('objects_types_and_coordinates.geojson');
            // const data = await response.json();
@@ -412,6 +726,8 @@
            const rawGeoJSON = await response.json();
            
            const data = jitterDuplicateCoordinates(rawGeoJSON);
+           geojsonData = data;
+           //buildKeywordIndex(geojsonData);
 
             types.forEach(type => {
                 const iconPath = `img/icons/${type}-icon.png`; // Adjust path as needed
@@ -436,19 +752,14 @@
                 clusterMaxZoom: 14, // Max zoom to cluster points on
                 clusterRadius: 50, // Radius of each cluster when clustering points (defaults to 50)
                 clusterProperties: {
-                    document_count: ["+", ["case", ["==", ["get", "type"], "document"], 1, 0]],
-                    drawing_count: ["+", ["case", ["==", ["get", "type"], "drawing"], 1, 0]],
-                    manuscript_count: ["+", ["case", ["==", ["get", "type"], "manuscript"], 1, 0]],
-                    painting_count: ["+", ["case", ["==", ["get", "type"], "painting"], 1, 0]],
+                    publishing_count: ["+", ["case", ["==", ["get", "type"], "publishing"], 1, 0]],
+                    music_count: ["+", ["case", ["==", ["get", "type"], "music"], 1, 0]],
+                    architecture_count: ["+", ["case", ["==", ["get", "type"], "architecture"], 1, 0]],
+                    audiovisual_count: ["+", ["case", ["==", ["get", "type"], "audiovisual"], 1, 0]],
                     photography_count: ["+", ["case", ["==", ["get", "type"], "photography"], 1, 0]],
-                    audio_count: ["+", ["case", ["==", ["get", "type"], "audio"], 1, 0]],
-                    print_count: ["+", ["case", ["==", ["get", "type"], "print"], 1, 0]],
-                    scultpure_count: ["+", ["case", ["==", ["get", "type"], "sculpture"], 1, 0]],
-                    map_count: ["+", ["case", ["==", ["get", "type"], "map"], 1, 0]],
-                    object_count: ["+", ["case", ["==", ["get", "type"], "object"], 1, 0]],
+                    design_count: ["+", ["case", ["==", ["get", "type"], "design"], 1, 0]],
                 }
             });
-
 
             map.addLayer({
                 id: 'clusters',
@@ -456,89 +767,7 @@
                 source: 'objects',
                 filter: ['has', 'point_count'],
                 layout: {
-                    'icon-image': [
-                        'case',
-                        ['>', ['get', 'document_count'], ['max',
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'map_count'],
-                            ['get', 'object_count']
-                        ]], 'document-icon',
-                        
-                        ['>', ['get', 'drawing_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'map_count'],
-                            ['get', 'object_count']
-                        ]], 'drawing-icon',
-
-                        ['>', ['get', 'photography_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'map_count'],
-                            ['get', 'object_count']
-                        ]], 'photography-icon',
-
-                        ['>', ['get', 'audio_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'print_count'],
-                            ['get', 'map_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'object_count']
-                        ]], 'audio-icon',
-
-                        ['>', ['get', 'print_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'map_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'object_count']
-                        ]], 'print-icon',
-
-                        ['>', ['get', 'map_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'object_count']
-                        ]], 'map-icon',
-
-                        ['>', ['get', 'object_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'manuscript_count'],
-                            ['get', 'map_count']
-                        ]], 'object-icon',
-
-                        ['>', ['get', 'manuscript_count'], ['max',
-                            ['get', 'document_count'],
-                            ['get', 'drawing_count'],
-                            ['get', 'photography_count'],
-                            ['get', 'audio_count'],
-                            ['get', 'print_count'],
-                            ['get', 'map_count']
-                        ]], 'manuscript-icon',
-
-                        'default-icon' // fallback
-                    ],
+                    'icon-image': generateDominantIconExpression(types),
                     'icon-size': [
                         'interpolate',
                         ['linear'],
@@ -562,7 +791,7 @@
                     'text-size': 12
                 },
                 paint: {
-                    "text-color": "#929292"
+                    "text-color": "#fff"
                 }
             });
 
@@ -603,89 +832,7 @@
             // description HTML from its properties.
             map.on('click', 'unclustered-point', (e) => {
                 const feature = e.features[0];
-                const coordinates = feature.geometry.coordinates.slice();
-                const date = feature.properties.date;
-                const title = feature.properties.title;
-                const author = feature.properties.author;
-                const place = feature.properties.place;
-                const archive = feature.properties.archive;
-                const img_path = feature.properties.img_path;
-
-                const id = feature.properties.id;
-
-                const url = setupURL(archive, id)
-
-                //Lodovico https://lodovico.medialibrary.it/media/schedadl.aspx?id=15108e57-8688-43a2-b760-871749b5ea97
-                //Classense https://www.cdc.classense.ra.it/s/Classense/item/{id}
-
-                // Split by "/" and get the last part
-                const parts = img_path.split("/");
-                const img_file = parts[parts.length - 1];   
-
-                // Ensure that if the map is zoomed out such that
-                // multiple copies of the feature are visible, the
-                // popup appears over the copy being pointed to.
-                if (['mercator', 'equirectangular'].includes(map.getProjection().name)) {
-                    while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-                        coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-                    }
-                }
-
-                const imageId = feature.properties.id;  // make sure your GeoJSON has this field
-              
-                //http://130.136.2.161:8080
-                new mapboxgl.Popup()
-                    .setLngLat(coordinates)
-                    .setHTML(`
-                        <img id="objectImage" src="${serverURL}/images/${img_file}" alt="${title}" style="width: 100%; max-width: 200px;"/>
-                        <div class="accordion accordion-flush" id="accordionFlushExample">
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="flush-headingOne">
-                                    <button class="accordion-button collapsed" type="button"
-                                        data-bs-toggle="collapse"
-                                        data-bs-target="#flush-collapseOne"
-                                        aria-expanded="false"
-                                        aria-controls="flush-collapseOne">
-                              
-                                    </button>
-                                </h2>
-                                <div id="flush-collapseOne" class="accordion-collapse collapse" aria-labelledby="flush-headingOne" data-bs-parent="#accordionFlushExample">
-                                    <div class="accordion-body">
-                                        <p>
-                                        <strong>${title}</strong><br>
-                                        ${author || ''}<br>
-                                        ${date}<br>
-                                        <strong>Fondo</strong> ${archive}<br>
-                                        Current location: ${place}
-                                        </p>
-                                    </div>
-                                    <div class="row">
-                                        <div>
-                                            <a class="btn btn-outline-secondary" href="${url}" target="_blank" role="button">Lo trovi qui</a>
-                                            <button type="button" id="open_metamotor" class="btn btn-outline-secondary">Vedi simili</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                            </div>
-                        </div>
-                        
-                        `
-                    )
-                    .addTo(map);
-
-                const openSidebarBtn = document.getElementById('open_metamotor');
-                const closeSidebarBtn = document.getElementById('close_metamotor');
-                const sidebar = document.getElementById('sidebar_metamotor');
-
-                openSidebarBtn.addEventListener('click', () => {
-                    sidebar.style.right = '0';
-                    searchSimilarObjects(id);
-                });
-
-                closeSidebarBtn.addEventListener('click', () => {
-                    sidebar.style.right = '-300px';
-                });
+                displayPopup(feature, map); 
             });
 
             map.on('mouseenter', 'clusters', () => {
@@ -705,91 +852,15 @@
             createTypeFilterUI(types, 'unclustered-point');
         });
 
-        async function searchSimilarObjects(imageId) {
-            document.getElementById('results').innerHTML = 'Loading...';
+        document.getElementById('search-box').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
 
-            try {
-                const response = await fetch(`${serverURL}/search`,{
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image_id: imageId })
-                });
-                console.log(response);
-                if (!response.ok) throw new Error('Request failed');
-
-                const results = await response.json();
-                displayResults(results);
-
-            } catch (error) {
-                console.error(error);
-                document.getElementById('results').innerHTML = 'Error fetching results.';
+                const sidebar = document.getElementById('sidebar_metamotor');
+                sidebar.style.right = '0';
+                keywordSearch(input);
             }
-        }
-        /**
-         * Display rsesults for image similarity search
-         * */
-        function displayResults(results) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
-
-            if (results.length === 0) {
-                resultsDiv.textContent = 'No similar objects found.';
-                return;
-            }
-
-            results.forEach(item => {
-                /*
-                    author: "Cristianopulo, Giovanni Domenico"
-                    date: "1806"
-                    id: "2880f1f9-fe5d-4b4f-bf82-5dd8a1336335"
-                    img_path: "downloaded_images/2880f1f9-fe5d-4b4f-bf82-5dd8a1336335.jpg"
-                    title: "Lettera di Cristianopulo, Giovanni Domenico a Tondini, Giovanni Battista"
-                    url: "https://mlolassets.s3.eu-south-1.amazonaws.com/lodovico/2880f1f9-fe5d-4b4f-bf82-5dd8a1336335.jpg"
-                */
-                const itemContainer = document.createElement('div');
-                itemContainer.className = 'result-item';
-
-                // Image section
-                const link = document.createElement('a');
-
-                link.href = setupURL(item.archive, item.id);
-                link.target = '_blank'; // Opens the link in a new tab
-
-                const img = document.createElement('img');
-                const img_path = item.img_path;
-                const parts = img_path.split("/");
-                const img_file = parts[parts.length - 1];  
-
-                img.src = `${serverURL}/images/${img_file}`;
-                img.alt = item.title || item.id;
-                img.className = 'result-image';
-
-                // Add the image inside the anchor tag
-                link.appendChild(img);
-
-                const caption = document.createElement('div');
-                caption.className = 'result-info';
-
-                const title = document.createElement('p');
-                title.innerHTML = `<strong>${item.title || item.id}</strong>`;
-                const author = document.createElement('p');
-                author.textContent = item.author || '';
-                const date = document.createElement('p');
-                date.textContent = item.date || '';
-
-                caption.appendChild(title);
-                caption.appendChild(author);
-                caption.appendChild(date);
-
-                // Combine both parts
-                itemContainer.appendChild(link);
-                itemContainer.appendChild(caption);
-
-                resultsDiv.appendChild(itemContainer);
-            });
-        }
-        
-
+        });
     </script> 
 </body>
 </html>
