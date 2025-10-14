@@ -13,14 +13,16 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 │   ├── app.py        
 │   ├── image_search.py    
 │   ├── requirements.txt
-│   ├── dataset_with_embeddings.csv
+│   ├── redis_export.csv
 │   └── downloaded_images
 │       ├── img_00        
 │       └── img_01    
 │       └── ...                   
 ├── frontend
-│   ├── index.html       
-│   ├── objects_types_and_coordinates.geojson
+│   ├── index.html
+│   ├── map.js
+│   ├── grid.js     
+│   ├── redis_export.geojson
 │   └── img
 │       └── icons        
 │           └── documents-icon.png    
