@@ -21,7 +21,8 @@ Informazioni generali sul progetto [qui](https://www.unibo.it/it/ricerca/progett
 ├── frontend
 │   ├── index.html
 │   ├── map.js
-│   ├── grid.js     
+│   ├── grid.js
+│   ├── style.css  
 │   ├── redis_export.geojson
 │   └── img
 │       └── icons        
