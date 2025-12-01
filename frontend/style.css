@@ -31,8 +31,8 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     text-align: left;
 }
 .popup-arrow {
-    width: 16px;
-    height: 16px;
+    width: 10px;
+    height: 20px;
     transition: transform 0.3s ease;
     transform: rotate(90deg);
     margin-left: 10px;
@@ -73,6 +73,9 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     font-weight: bold;
     line-height: 1;
     padding: 0;
+
+    /*background: url('img/close-icon.svg') no-repeat center center;
+    background-size: contain;*/
 }
 
 .custom-popup .mapboxgl-popup-close-button:hover {
@@ -425,7 +428,7 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     font-family: 'Martian Mono', monospace; 
     color: #FD5E15;
     font-weight: lighter;
-    border-top: 0.8px solid #FD5E15;
+    border-top: 1.2px solid #FD5E15;
 }
 .sidebar-info a{
     font-family: 'Martian Mono', monospace; 
@@ -452,10 +455,60 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     font-weight: lighter;
 }
 .sidebar-title p{
-    font-family: 'Xanh Mono', monospace;
+    font-family: 'Martian Mono', monospace;
     font-weight: lighter;
-    font-size: 20px;
+    font-size: 0.9rem;
     color: #FD5E15;
+}
+/* Spinner base styles */
+.spinner {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    /*transform: translateX(-50%);*/
+    width: 40px;
+    height: 40px;
+    border: 5px solid rgba(255, 117, 22, 0.2); /* light orange */
+    border-top: 5px solid #FF7516;             /* bright orange */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 1000;
+  }
+  
+  /* Animation */
+  @keyframes spin {
+    to { transform: rotate(180deg); }
+  }
+  
+  /* Hidden by default */
+  .hidden {
+    display: none;
+  }
+
+
+.image-container-color {
+    position: relative;              /* Needed for ::after to overlay the image */
+    display: inline-block;          /* Keeps image size and layout */
+    overflow: hidden;               /* Prevents overlay spill */
+}
+/* Semi-transparent overlay mask */
+.image-container-color::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #FF7516;
+    opacity: 0.7; /* Default orange tint */
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    mix-blend-mode: color;
+}
+
+/* Show overlay on hover */
+.image-container-color:hover::after {
+    opacity: 0;
 }
 
 .image-container{
@@ -479,24 +532,39 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     cursor: pointer;
 }
 
-#similar-items {
-    display: flex;          /* Arrange children in a row */
-    gap: 10px;              /* Space between similar items */
-    overflow-x: auto;       /* Optional: scroll if too many items */
+/*similar-items {
+    display: flex;          
+    gap: 10px;              
+    overflow-x: auto;       
     padding: 5px 0;
+}*/
+.similar-res-title{
+    margin-top: 25px;
+    font-size: 1rem;
+    font-weight: lighter;
 }
-
+/* NEW: Style for same collection items */
+.similar-items-wrapper {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 5px 0;
+    margin-top: 5px; /* Space between title and images */
+}
 .similar-item {
     flex: 0 0 auto;         /* Prevent items from shrinking */
-    width: 100px;           /* Or whatever size fits your design */
+    width: 250px;           /* Or whatever size fits your design */
     cursor: pointer;
+    height: 20vh;
 }
 
 .similar-item img {
-    width: 100%;            /* Make image fill its container */
-    max-height: 100px;
-    border-radius: 5px;     /* Optional styling */
-    object-fit: cover;      /* Keep aspect ratio, crop if necessary */
+    width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    object-fit: cover;
+    object-position: center;
+    display: block;
 }
 
 /*Button toggle GRID-MAP*/
@@ -567,20 +635,34 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #FD5
     display: block;
 }
 .grid-item-title{
-    font-size: 1.5rem;
-}
-.grid-item-description{
-    transition: opacity 1.2s ease-in-out, height 1.2s ease-in-out; /* One set of transitions */
-    display: none; /* Hidden by default */
-    opacity: 0; /* Hidden by default */
-    height: 0; /* Initial height, hides it */
+    font-size: 1.2rem;
 }
 
-.feature-item:hover .grid-item-description{ /* When hover, the div becomes visible */
-    height: auto; /* Auto height for content */
-    opacity: 1; /* Show it */
-    display: block; /* Show the contents of the overlay */
+.grid-item-description {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: all 0.5s ease;
 }
+
+.feature-item:hover .grid-item-description {
+    max-height: 5000px; /* Set to a value large enough to fit the content */
+    opacity: 1;
+}
+
+/*
+.grid-item-description{
+    transition: opacity 1.2s ease-in-out, height 1.2s ease-in-out; 
+    display: none; 
+    opacity: 0; 
+    height: 0;
+}
+
+.feature-item:hover .grid-item-description{ 
+    height: auto; 
+    opacity: 1; 
+    display: block; 
+}*/
 .filtri .logo{
     margin-top: 20px;
     margin-bottom: 20px;
