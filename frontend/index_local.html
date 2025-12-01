@@ -29,6 +29,7 @@
                 <span id="close_metamotor" class="pointer">Torna indietro ></span>
                 <div id="featured-item"></div>
                 <div id="similar-items"></div>
+                <div id="samecollection-items"></div>
                 <!--<div id="results"></div>-->
             </div>
             <button type="button" id="btn-toggle" class="btn">Grid</button>
@@ -87,6 +88,7 @@
                         <div class="col" id="col-4">
                         </div>
                     </div>
+                    <div id="loading-spinner" class="spinner hidden"></div>
                 </div>
                 
                 <div id="map" class="active">
@@ -101,13 +103,18 @@
     <!-- jQuery must come first -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
    <script>
-        const serverURL = 'http://137.204.195.17:5030';
+        const serverURL = 'http://192.168.249.170:5030';//'http://192.168.249.170:5030';//'http://127.0.0.1:5030'; //'http://137.204.195.17:5030';
+        
         const toggleButton = document.getElementById('btn-toggle');
         const mapContainer = document.getElementById('map');
         const gridContainer = document.getElementById('grid');
         const types = ['design', 'architecture', 'audiovisual', 'mode', 'photography', 'music', 'publishing', 'dance'] //['publishing', 'music', 'architecture', 'audiovisual', 'photography', 'design']
 
         const closeSidebarBtn = document.getElementById('close_metamotor');
+
+        let allFeatures = [];     // Store all loaded features
+        let currentOffset = 0;    // Track current number of loaded items
+        const itemsPerPage = 20;  // Load 20 items at a time
 
         const activeFilters = {
             date: null,
@@ -200,8 +207,6 @@
                 } else {
                     console.log('No year data found.');
                 }
-
-
             });
         document.querySelectorAll('.filter-button').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -224,6 +229,8 @@
         });
 
         function filterFeatures() {
+            filteredOffset = 0;
+
             let filteredFeatures = geojson.features;
 
             // Filter by date if selected
@@ -251,7 +258,10 @@
             }
 
             // Update map display
-            displayFeatures(filteredFeatures);
+            //displayFeatures(filteredFeatures);
+            clearFeatureColumns();
+            allFeatures = filteredFeatures;
+            loadMoreFeatures();
             console.log(activeFilters.type, activeFilters.fondo, activeFilters.date);
             updateMapFilters(filteredFeatures, activeFilters.type === 'all' ? null : activeFilters.type, activeFilters.fondo, activeFilters.date);
             //updateMapFilters(activeFilters.type === 'all' ? null : activeFilters.type, activeFilters.fondo, activeFilters.date);
@@ -300,10 +310,13 @@
             console.log(results);
             const resultsDiv = document.getElementById('similar-items');
             const featuredDiv = document.getElementById('featured-item');
+            const samecollectionDiv = document.getElementById('samecollection-items');
 
             // Clear previous content
             featuredDiv.innerHTML = '';
             resultsDiv.innerHTML = '';
+            samecollectionDiv.innerHTML = '';
+
 
             if (!results || results.length === 0) {
                 resultsDiv.textContent = 'No similar objects found.';
@@ -317,7 +330,7 @@
             console.log(first)
 
             featuredDiv.innerHTML = `
-                <div class="image-container">
+                <div class="image-container image-container-color">
                     <img src="${serverURL}/images/${firstImgFile}" alt="${first.title || first.id}" class="featured-image" />
                 </div>
                 <div class="featured-info">
@@ -329,7 +342,11 @@
                         <tbody>
                             <tr><td>Autore:</td><td>${first.author || '-'}</td></tr>
                             <tr><td>Data:</td><td>${first.date || '-'}</td></tr>
-                            <tr><td>Archivio:</td><td><a href="${setupURL(first.archive, first.id)}" target="_blank">${first.fondo|| '-'}</a></td></tr>
+                            <tr><td>Archivio:</td><td>
+                                <a href="${setupURL(first.archive, first.id)}" target="_blank">
+                                    ${first.fondo ?? (first.archive === 'benedetti' ? 'Corago' : '-')}
+                                </a>
+                            </td></tr>
                             <tr><td>Ente:</td><td><a href="${setupURL(first.archive, first.id)}" target="_blank">${first.archive || firstOrigin[1] ||  '-'}</a></td></tr>
                             <tr><td>Collocazione:</td><td>${firstOrigin[1] || first.place || '-'}</td></tr>
                         </tbody>
@@ -337,18 +354,64 @@
                 </div>
             `;
 
+            const currentFondo = first.fondo;
+
+            const sameCollectionItems = geojson.features
+                .filter(f => f.properties.fondo === currentFondo && f.properties.id !== first.id)
+                .slice(0, 3); // limit to 3
+
+            console.log("Collection items!");
+            console.log(sameCollectionItems);
+
+            if (sameCollectionItems.length > 0) {
+                samecollectionDiv.innerHTML = `<div class="similar-res-title">Appartenenti allo stesso archivio</div><div class="similar-items-wrapper">` +
+                    sameCollectionItems.map(item => {
+                        const props = item.properties;
+                        if (props.img_path) {
+                            const imgFile = props.img_path.split('/').pop();
+                            return `
+                                <div class="similar-item image-container-color" data-id="${props.id}">
+                                    <img src="${serverURL}/images/${imgFile}" alt="${props.title || props.id}" class="similar-image"/>
+                                </div>
+                            `;
+                        }
+                    }).join('') +
+                    `</div>`
+                ;
+            }
+
+            // Add click listeners for similar items
+            document.querySelectorAll('#samecollection-items .similar-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const id = el.getAttribute('data-id');
+                    object = getObjectById(id);
+                    searchSimilarObjects(id);
+                    const matchedFeature = geojson.features.find(f => String(f.properties.id) === String(id));
+                    if (matchedFeature) {
+                        const coords = matchedFeature.geometry.coordinates;
+                        map.flyTo({
+                            center: coords,
+                            zoom: 50
+                        });
+                        map.once('moveend', () => {
+                            displayPopup(matchedFeature, map);
+                        });
+                    }
+                });
+            });
+
             // Similar items (max 3)
-            resultsDiv.innerHTML = similarItems.slice(0, 3)
+            resultsDiv.innerHTML = `<div class="similar-res-title">Risultati simili</div><div class="similar-items-wrapper">` + similarItems.slice(0, 3)
                 .map(item => {
                     if(item.img_path){
                         const imgFile = item.img_path.split('/').pop();
                         return `
-                            <div class="similar-item" data-id="${item.id}">
+                            <div class="similar-item image-container-color" data-id="${item.id}">
                                 <img src="${serverURL}/images/${imgFile}" alt="${item.title || item.id}" class="similar-image"/>
                             </div>
                         `;
                     }
-                }).join('');
+                }).join('') + `</div>`;
 
             // Add click listeners for similar items
             document.querySelectorAll('#similar-items .similar-item').forEach(el => {
@@ -370,6 +433,39 @@
                 });
             });
         }
+        async function keywordSearch(input){
+            try {
+                const response = await fetch(`${serverURL}/search_keywords?q=${encodeURIComponent(input)}`);
+                const data = await response.json();
+                console.log(data);
+
+                const matchedIDs = data.map(item => item.id);
+                const matchedFeatures = geojson.features.filter(feature =>
+                    matchedIDs.includes(feature.properties.id)
+                );
+
+                if (mapContainer.classList.contains('active')) {
+                    const sidebar = document.getElementById('sidebar_metamotor');
+                    sidebar.style.right = '0';
+                    displayResults(data);
+                }else{
+                    clearFeatureColumns();
+                    allFeatures = matchedFeatures;
+                    currentOffset = 0; 
+                    loadMoreFeatures();
+                }
+                //map.getSource('your-data-source-id').setData(data);
+            } catch (err) {
+                console.error('Search API error:', err);
+            }
+        }
+
+        document.getElementById('search-box').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
+                keywordSearch(input);
+            }
+        });
     </script>
     <script src="map.js"></script>
     <script src="grid.js"></script>

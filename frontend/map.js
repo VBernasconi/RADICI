@@ -9,17 +9,6 @@ let keywordIndex = {};
 let geojsonData = {};
 let currentPopup = null;
 
-async function keywordSearch(input){
-    try {
-        const response = await fetch(`${serverURL}/search_keywords?q=${encodeURIComponent(input)}`);
-        const data = await response.json();
-        console.log(data);
-        displayResults(data);
-        //map.getSource('your-data-source-id').setData(data);
-    } catch (err) {
-        console.error('Search API error:', err);
-    }
-}
 //Latest addition on 26 september 2025
 function applyAllFilters() {
     let filteredFeatures = geojson.features;
@@ -789,14 +778,4 @@ map.on('load', async () => {
 
     // Create UI controls
     createTypeFilterUI(types, 'unclustered-point');
-});
-
-document.getElementById('search-box').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') {
-        const input = e.target.value.trim();
-
-        const sidebar = document.getElementById('sidebar_metamotor');
-        sidebar.style.right = '0';
-        keywordSearch(input);
-    }
 });
