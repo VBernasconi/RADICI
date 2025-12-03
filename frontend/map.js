@@ -525,6 +525,8 @@ function displayPopup(feature, map){
             popupEl.querySelector('.popup-espandi-btn').addEventListener('click', () => {
                 document.getElementById('sidebar_metamotor').style.right = '0';
                 document.querySelector('.mainContent').classList.add('blur-background');
+                console.log("Search similar objects");
+                console.log(id);
                 searchSimilarObjects(id);
             });
         }
