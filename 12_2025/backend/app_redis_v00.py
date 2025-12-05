@@ -48,6 +48,7 @@ def get_next_object_id():
         return 1
     return max(numeric_keys) + 1
 
+
 def extract_keywords(text):
     """Extract sanitized keywords from a text."""
     if not text:
@@ -79,16 +80,14 @@ def load_faiss_from_redis():
         embeddings.append(emb)
         objects.append(obj)
 
-    dim = 384  # embedding dimension of all-MiniLM-L6-v2
     if len(embeddings) == 0:
-        return [], faiss.IndexFlatL2(dim)
+        return [], faiss.IndexFlatL2(384)
 
     embeddings = np.vstack(embeddings).astype("float32")
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
 
     return objects, index
-
 
 def load_keyword_index_from_redis():
     keys = r.keys("*")
@@ -162,9 +161,8 @@ def add_object():
         return jsonify({"error": "No data provided"}), 400
 
     # Assign string ID
-    obj_id = str(get_next_object_id())
-    print("NEW OBJECT ID INSERTED: ", obj_id)
-
+    next_id = get_next_object_id()
+    obj_id = str(next_id)  # keep it numeric, as existing keys
     data["id"] = obj_id
 
     # Build combined text
@@ -186,22 +184,9 @@ def add_object():
         data["tags"] = json.dumps(data["tags"])
 
     # Save to Redis as hash
-    r.hset(f"{obj_id}", mapping=data)
+    r.hset(obj_id, mapping=data)
 
-    # --- FAISS Safe Add ---
-    if redis_faiss is None or redis_faiss.ntotal == 0:
-        # First vector, create index with correct dimension
-        redis_faiss = faiss.IndexFlatL2(emb.shape[0])
-        
-    elif redis_faiss.d != emb.shape[0]:
-        # Dimension mismatch, recreate index (rare)
-        print(f"[FAISS] Dimension mismatch, recreating index: {redis_faiss.d} -> {emb.shape[0]}")
-        redis_faiss = faiss.IndexFlatL2(emb.shape[0])
-        # Re-add all existing embeddings
-        for o in redis_objects:
-            e = np.array(json.loads(o["embeddings"]), dtype="float32").reshape(1, -1)
-            redis_faiss.add(e)
-
+    # Update FAISS index in memory
     redis_faiss.add(emb.reshape(1, -1))
     redis_objects.append(data)
 
@@ -213,13 +198,8 @@ def add_object():
             keyword_list.append(kw)
 
             kw_emb = MODEL.encode([kw]).astype("float32")
-            if len(keyword_embeddings) == 0:
-                keyword_embeddings = kw_emb
-                keyword_faiss = faiss.IndexFlatL2(kw_emb.shape[1])
-                keyword_faiss.add(kw_emb)
-            else:
-                keyword_embeddings = np.vstack([keyword_embeddings, kw_emb])
-                keyword_faiss.add(kw_emb)
+            keyword_embeddings = np.vstack([keyword_embeddings, kw_emb]) if len(keyword_embeddings) > 0 else kw_emb
+            keyword_faiss.add(kw_emb)
 
         keyword_map[kw].append(obj_id)
 
