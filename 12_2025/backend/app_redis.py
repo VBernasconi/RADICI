@@ -27,6 +27,28 @@ CORS(app)
 
 MODEL = SentenceTransformer("all-MiniLM-L6-v2")
 
+# Default fields for every object
+DEFAULT_FIELDS = {
+    "image": "",
+    "url": "",
+    "tags": "",
+    "model_base": "",
+    "place": "",
+    "date": "",
+    "fondo": "",
+    "coordinates": "[]",
+    "img_path": "",
+    "type": "",
+    "archive": "",
+    "origin": "",
+    "embeddings": "",
+    "title": "",
+    "id": "",
+    "singer": "",
+    "author": "",
+    "model_lora": ""
+}
+
 # ---------------------------------------------------------
 # NLP Setup
 # ---------------------------------------------------------
@@ -96,10 +118,19 @@ def load_keyword_index_from_redis():
     keyword_list = []
 
     for key in keys:
+
+        # Skip the cache
+        if key == "place_coordinates_cache":
+            continue
+            
         obj = r.hgetall(key)
         if not obj:
             continue
-        obj_id = obj["id"]  # keep as string
+        #obj_id = obj["id"]  # keep as string
+        obj_id = obj.get("id")
+        if not obj_id:
+            continue  # skip entries without an id
+
 
         text = " ".join([
             obj.get("title", ""),
@@ -147,73 +178,83 @@ def upload_image():
     os.makedirs("downloaded_images", exist_ok=True)
     img.save(save_path)
 
-    return jsonify({"filename": filename})
+    # Frontend will store this directly into Redis
+    return jsonify({
+        "filename": filename,
+        "img_path": f"/images/{filename}"
+    }), 200
 
-# ---------------------------------------------------------
-# ADD OBJECT
-# ---------------------------------------------------------
 @app.route("/add_object", methods=["POST"])
 def add_object():
-    global redis_objects, redis_faiss
     global keyword_map, keyword_list, keyword_embeddings, keyword_faiss
 
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    # Assign string ID
+    # Assign numeric ID
     obj_id = str(get_next_object_id())
-    print("NEW OBJECT ID INSERTED: ", obj_id)
 
-    data["id"] = obj_id
+    # Full container path for the image
+    filename = data.get("img_path", "").replace("/images/", "")
+    full_img_path = f"/app/data/downloaded_images/{filename}" if filename else ""
 
-    # Build combined text
+    # ----------------------------
+    # FIELD MAPPING (frontend → Redis)
+    # ----------------------------
+    mapped = {
+        "id": obj_id,
+        "title": data.get("title", ""),
+        "model_base": data.get("description", ""),     # description → model_base
+        "author": data.get("author", ""),
+        "singer": data.get("singer", ""),
+        "date": data.get("date", ""),
+        "fondo": data.get("fondo", ""),
+        "archive": data.get("archive", ""),
+        "place": data.get("place", ""),
+        "type": data.get("type", ""),
+        "origin": data.get("origin", ""),
+        "url": data.get("url", ""),
+        "model_lora": data.get("model_lora", ""),
+        "coordinates": json.dumps(data.get("coordinates", [])),
+        "tags": json.dumps(data.get("tags", [])),
+        "img_path": full_img_path,
+        "image": filename,  # keep just the filename
+        "embeddings": ""  # FILLED LATER BY YOUR EMBEDDING PIPELINE
+    }
+
+    # --------------------------------
+    # Save object into Redis
+    # --------------------------------
+    r.hset(obj_id, mapping=mapped)
+
+    # --------------------------------
+    # Build text for keyword index
+    # --------------------------------
     text = " ".join([
-        data.get("title", ""),
-        data.get("description", ""),
-        data.get("author", ""),
-        data.get("origin", ""),
-        data.get("model_base", ""),
-        data.get("singer", "")
+        mapped["title"],
+        mapped["model_base"],
+        mapped["author"],
+        mapped["place"],
+        mapped["origin"],
+        mapped["singer"],
+        mapped["type"]
     ])
 
-    # EMBEDDING
-    emb = MODEL.encode([text]).astype("float32")[0]
-    data["embeddings"] = json.dumps(emb.tolist())
-
-    # Convert list fields to JSON strings for Redis
-    if isinstance(data.get("tags"), list):
-        data["tags"] = json.dumps(data["tags"])
-
-    # Save to Redis as hash
-    r.hset(f"{obj_id}", mapping=data)
-
-    # --- FAISS Safe Add ---
-    if redis_faiss is None or redis_faiss.ntotal == 0:
-        # First vector, create index with correct dimension
-        redis_faiss = faiss.IndexFlatL2(emb.shape[0])
-        
-    elif redis_faiss.d != emb.shape[0]:
-        # Dimension mismatch, recreate index (rare)
-        print(f"[FAISS] Dimension mismatch, recreating index: {redis_faiss.d} -> {emb.shape[0]}")
-        redis_faiss = faiss.IndexFlatL2(emb.shape[0])
-        # Re-add all existing embeddings
-        for o in redis_objects:
-            e = np.array(json.loads(o["embeddings"]), dtype="float32").reshape(1, -1)
-            redis_faiss.add(e)
-
-    redis_faiss.add(emb.reshape(1, -1))
-    redis_objects.append(data)
-
-    # ---- Keyword extraction ----
+    # Extract keywords
     new_keywords = extract_keywords(text)
+
+    # --------------------------------
+    # Update keyword FAISS index
+    # --------------------------------
     for kw in new_keywords:
         if kw not in keyword_map:
             keyword_map[kw] = []
             keyword_list.append(kw)
 
-            kw_emb = MODEL.encode([kw]).astype("float32")
-            if len(keyword_embeddings) == 0:
+            kw_emb = MODEL.encode([kw]).astype(np.float32)
+
+            if keyword_embeddings is None or len(keyword_embeddings) == 0:
                 keyword_embeddings = kw_emb
                 keyword_faiss = faiss.IndexFlatL2(kw_emb.shape[1])
                 keyword_faiss.add(kw_emb)
@@ -227,6 +268,70 @@ def add_object():
         "object_id": obj_id,
         "added_keywords": new_keywords
     }), 201
+
+# ---------------------------------------------------------
+# ADD OBJECT
+# ---------------------------------------------------------
+# @app.route("/add_object", methods=["POST"])
+# def add_object():
+#     global keyword_map, keyword_list, keyword_embeddings, keyword_faiss
+
+#     data = request.get_json()
+#     if not data:
+#         return jsonify({"error": "No data provided"}), 400
+
+#     obj_id = str(get_next_object_id())
+#     data["id"] = obj_id
+
+#     # ensure all default fields exist
+#     for f, default_val in DEFAULT_FIELDS.items():
+#         if f not in data:
+#             data[f] = default_val
+
+#     # --- FIX: Convert tags list -> JSON string ---
+#     if isinstance(data.get("tags"), list):
+#         data["tags"] = json.dumps(data["tags"])
+    
+#     if isinstance(data.get("coordinates"), list):
+#         data["coordinates"] = json.dumps(data["coordinates"])
+
+#     # --- FIX: ensure img_path is stored, even if empty ---
+#     if not data.get("img_path"):
+#         data["img_path"] = ""
+
+#     # --- Keyword embedding ---
+#     text = " ".join([
+#         data.get("title", ""),
+#         data.get("description", ""),
+#         data.get("author", ""),
+#         data.get("place", ""),
+#         data.get("origin", ""),
+#         data.get("model_base", ""),
+#         data.get("singer", "")
+#     ])
+#     text_emb = MODEL.encode([text]).astype(np.float32)[0]
+#     data["text_embedding"] = json.dumps(text_emb.tolist())
+    
+#     # Save to Redis
+#     r.hset(obj_id, mapping=data)
+
+#     # Update keyword FAISS index
+#     new_keywords = extract_keywords(text)
+#     for kw in new_keywords:
+#         if kw not in keyword_map:
+#             keyword_map[kw] = []
+#             keyword_list.append(kw)
+#             kw_emb = MODEL.encode([kw]).astype(np.float32)
+#             if keyword_embeddings is None or len(keyword_embeddings) == 0:
+#                 keyword_embeddings = kw_emb
+#                 keyword_faiss = faiss.IndexFlatL2(kw_emb.shape[1])
+#                 keyword_faiss.add(kw_emb)
+#             else:
+#                 keyword_embeddings = np.vstack([keyword_embeddings, kw_emb])
+#                 keyword_faiss.add(kw_emb)
+#         keyword_map[kw].append(obj_id)
+
+#     return jsonify({"object_id": obj_id, "added_keywords": new_keywords}), 201
 
 # ---------------------------------------------------------
 # IMAGE ROUTES
