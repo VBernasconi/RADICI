@@ -465,6 +465,14 @@
                 console.error('Search API error:', err);
             }
         }
+        document.getElementById("search-box").addEventListener("keyup", (e) => {
+            if (e.key === "Enter") {
+                const input = e.target.value.trim();
+                if (input.length > 0) {
+                    keywordSearch(input);
+                }
+            }
+        });
     </script>
     <script src="map.js"></script>
     <script src="grid.js"></script>

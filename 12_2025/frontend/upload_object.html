@@ -20,6 +20,47 @@
         label {
             color: #ccc;
         }
+        .sector-select-container {
+            margin: 10px 0;
+            font-family: 'Martian Mono', monospace;
+        }
+
+        #sector-select {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            width: 100%;
+            background: #fafafa;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        #sector-select:hover {
+            background: #f0f0f0;
+        }
+        .tag {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 4px;
+            border-radius: 20px;
+            color: #fff;
+            border: 1px solid #aaa;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tag.active {
+            background: #fff;
+            color: #000;
+            border-color: #fff;
+        }
+
+        #preview {
+            max-width: 200px;
+            margin-top: 10px;
+            display: none;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -47,6 +88,11 @@
             </div>
 
             <div class="mb-3">
+                <label class="form-label">Singer</label>
+                <input type="text" class="form-control" id="singer">
+            </div>
+
+            <div class="mb-3">
                 <label class="form-label">Date (YYYY or YYYY-YYYY)</label>
                 <input type="text" class="form-control" id="date">
             </div>
@@ -62,20 +108,37 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Model Base</label>
-                <input type="text" class="form-control" id="model_base">
+                <label class="form-label">Place</label>
+                <input type="text" class="form-control" id="place">
             </div>
 
+            <div class="sector-select-container">
+                <label for="sector-select">Creative industry:</label>
+                <select id="sector-select">
+                    <option value="">— Select the field —</option>
+                    <option value="photography">Photography</option>
+                    <option value="design">Design</option>
+                    <option value="architecture">Architecture</option>
+                    <option value="audiovisual">Audiovisual</option>
+                    <option value="mode">Mode</option>
+                    <option value="music">Music</option>
+                    <option value="publishing">Publishing</option>
+                    <option value="dance">Dance</option>
+                </select>
+            </div>
+            
             <div class="mb-3">
-                <label class="form-label">Singer</label>
-                <input type="text" class="form-control" id="singer">
+                <label class="form-label">Tags</label>
+                <input type="text" class="form-control" id="tag">
+                <div class="tag-container" id="tag-container"></div>
             </div>
-
+            
             <div class="mb-4">
-                <label class="form-label">Image File (optional)</label>
+                <label class="form-label">Image File</label>
                 <input type="file" id="img_file" accept="image/*" class="form-control">
+                <img id="preview">
             </div>
-
+            
             <button type="submit" class="btn btn-primary w-100">Submit</button>
         </form>
 
@@ -90,6 +153,76 @@
 <script>
 const serverURL = "http://192.168.249.170:5030";
 
+const tagsByIndustry = {
+    photography: ["Portrait", "Affresco"],
+    architecture: [
+        "Craft","Context","Conservation","Detail","Public monument",
+        "Facade","Liberty","Structure","Sketch"
+    ],
+    publishing: ["Periodics", "Books", "Manuscripts"],
+    design: [
+        "Game","Innovation","Materials","Prototype","Research",
+        "Sketch","Theory","Technology"
+    ],
+    mode: [
+        "Sketch","Designers","Materials","Research","Runway",
+        "Stylists","Textile"
+    ],
+    audiovisual: ["Designers", "Direction", "Atelier", "Textile"],
+    music: [
+        "Classical music","Contemporary music","Electronic music",
+        "Traditional music","Music for images","Music for the stage",
+        "Religious music","Functional music"
+    ]
+};
+
+// -------------------------
+// TAG UI LOGIC
+// -------------------------
+const sectorSelect = document.getElementById("sector-select");
+const tagContainer = document.getElementById("tag-container");
+
+sectorSelect.addEventListener("change", () => {
+    const sector = sectorSelect.value;
+    tagContainer.innerHTML = "";
+
+    if (tagsByIndustry[sector]) {
+        tagsByIndustry[sector].forEach(tag => {
+            const el = document.createElement("div");
+            el.className = "tag";
+            el.textContent = tag;
+
+            el.addEventListener("click", () => {
+                el.classList.toggle("active");
+            });
+
+            tagContainer.appendChild(el);
+        });
+    }
+});
+
+function getSelectedTags() {
+    return [...document.querySelectorAll(".tag.active")].map(t => t.textContent);
+}
+
+/* -------------------------
+   IMAGE PREVIEW
+------------------------- */
+document.getElementById("img_file").addEventListener("change", function() {
+    const file = this.files[0];
+    const preview = document.getElementById("preview");
+
+    if (file) {
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = "block";
+    } else {
+        preview.style.display = "none";
+    }
+});
+
+// -------------------------
+// SUBMIT FORM
+// -------------------------
 document.getElementById("objectForm").addEventListener("submit", async function(e) {
     e.preventDefault();
 
@@ -99,9 +232,8 @@ document.getElementById("objectForm").addEventListener("submit", async function(
     const fileInput = document.getElementById("img_file");
     let imgPath = null;
 
-    // --- 1. Upload image if present ---
+    // Upload image
     if (fileInput.files.length > 0) {
-
         const formData = new FormData();
         formData.append("image", fileInput.files[0]);
 
@@ -111,7 +243,6 @@ document.getElementById("objectForm").addEventListener("submit", async function(
         });
 
         const uploadData = await uploadResp.json();
-
         if (!uploadResp.ok) {
             output.className = "alert alert-danger";
             output.innerText = "Image upload failed: " + uploadData.error;
@@ -122,7 +253,7 @@ document.getElementById("objectForm").addEventListener("submit", async function(
         imgPath = uploadData.filename;
     }
 
-    // --- 2. Prepare JSON payload for object ---
+    // Build payload
     const payload = {
         title: document.getElementById("title").value,
         description: document.getElementById("description").value,
@@ -130,12 +261,14 @@ document.getElementById("objectForm").addEventListener("submit", async function(
         date: document.getElementById("date").value,
         fondo: document.getElementById("fondo").value,
         archive: document.getElementById("archive").value,
-        model_base: document.getElementById("model_base").value,
         singer: document.getElementById("singer").value,
-        img_path: imgPath ?? null
+        place: document.getElementById("place").value,
+        model_base: document.getElementById("model_base")?.value || "",
+        img_path: imgPath,                               // image path
+        type: sectorSelect.value,                        // creative industry
+        tags: getSelectedTags() 
     };
 
-    // --- 3. Send new object to backend ---
     const response = await fetch(serverURL + "/add_object", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,13 +284,32 @@ document.getElementById("objectForm").addEventListener("submit", async function(
             ID: ${data.object_id}<br>
             Keywords: ${data.added_keywords.join(", ")}
         `;
+        output.classList.remove("d-none");
+        // --- Reset the form ---
+        document.getElementById("objectForm").reset();
+
+        // Reset image preview
+        const preview = document.getElementById("preview");
+        preview.src = "";
+        preview.style.display = "none";
+
+        // Reset tags
+        document.querySelectorAll(".tag").forEach(t => t.classList.remove("active"));
+
+        // Reset sector select
+        sectorSelect.value = "";
+
     } else {
         output.className = "alert alert-danger";
-        output.innerText = "Error: " + (data.error || "Unknown error");
+        output.textContent = "Error: " + (data.error || "Unknown error");
+        output.classList.remove("d-none");
     }
 
     output.classList.remove("d-none");
 });
+
+
+
 </script>
 
 </body>
