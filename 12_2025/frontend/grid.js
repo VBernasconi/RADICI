@@ -78,11 +78,25 @@ function displayFeatures(features) {
       itemDiv.className = 'feature-item image-container-color';
   
       itemDiv.innerHTML = `
-        <p class="grid-item-title">${feature.properties.title}</p>
-        <img src="${serverURL}/images/${img_file}" alt="${feature.properties.title}" style="cursor:pointer;" onclick="triggerActions('${feature.properties.id}')"> 
-        <div class="grid-item-description">
-          <p>${feature.properties.description}</p>
-        </div>
+      <div class="grid-item">
+          <p class="grid-item-title">${feature.properties.title}</p>
+
+          <div class="image-container">
+              <img class="grid-item-image"
+                  src="${serverURL}/images/${img_file}"
+                  alt="${feature.properties.title}"
+                  onclick="triggerActions('${feature.properties.id}')">
+
+              <img class="favorite-icon"
+                  src="img/signet-icon.png"
+                  onclick="openFavoriteModal('${feature.properties.id}', event)"
+                  title="Save to collection">
+          </div>
+
+          <div class="grid-item-description">
+              <p>${feature.properties.description ? feature.properties.description : 'No description available.'}</p>
+          </div>
+      </div>
       `;
   
       col.appendChild(itemDiv);
@@ -129,12 +143,27 @@ function loadMoreFeatures() {
         itemDiv.className = 'feature-item image-container-color';
 
         itemDiv.innerHTML = `
-            <p class="grid-item-title">${feature.properties.title}</p>
-            <img src="${serverURL}/images/${img_file}" alt="${feature.properties.title}" style="cursor:pointer;" onclick="triggerActions('${feature.properties.id}')"> 
-            <div class="grid-item-description">
-                <p>${feature.properties.description ? feature.properties.description : 'No description available.'}</p>
-            </div>
+          <div class="grid-item">
+              <p class="grid-item-title">${feature.properties.title}</p>
+        
+              <div class="image-container">
+                  <img class="grid-item-image"
+                      src="${serverURL}/images/${img_file}"
+                      alt="${feature.properties.title}"
+                      onclick="triggerActions('${feature.properties.id}')">
+        
+                  <img class="favorite-icon"
+                      src="img/signet-icon.png"
+                      onclick="openFavoriteModal('${feature.properties.id}', event)"
+                      title="Save to collection">
+              </div>
+        
+              <div class="grid-item-description">
+                  <p>${feature.properties.description ? feature.properties.description : 'No description available.'}</p>
+              </div>
+          </div>
         `;
+      
 
         col.appendChild(itemDiv);
     });

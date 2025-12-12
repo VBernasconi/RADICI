@@ -90,6 +90,43 @@
                     </div>
                     <div id="loading-spinner" class="spinner hidden"></div>
                 </div>
+                <div id="favoriteModal" class="modal hidden">
+
+                    <div class="modal-content">
+                        <span class="close-icon" onclick="closeFavoriteModal()">&times;</span>
+                
+                        <!-- LOGIN REQUIRED SECTION -->
+                        <div id="login-section" class="section hidden">
+                            <h3>ARTIFEX</h3>
+                            <p>Ciao! Per poter salvare i contenuti è necessario autenticarsi</p>
+                            <img src="img/icons-png/architecture-icon.png"></img>
+                
+                            <input id="login-username" type="text" placeholder="Username" class="input-field">
+                            <input id="login-password" type="password" placeholder="Password" class="input-field">
+                
+                            <button class="modal-btn" onclick="loginUser()">Accedi</button>
+                        </div>
+                
+                        <!-- USER LOGGED IN SECTION -->
+                        <div id="collection-section" class="section hidden">
+                            <h4>Aggiungi ai preferiti</h4>
+                            <input id="new-collection-name" class="input-field" placeholder="Crea nuova raccolta">
+                            <button class="modal-btn" onclick="createCollection()">Crea raccolta</button>
+                            <p>Oppure scegli una collezione</p>
+                            <select id="collection-select" class="input-field"></select>
+                            <button class="modal-btn primary" onclick="saveObjectToCollection()">Salva</button>
+                        </div>
+
+                        <!-- USER LOGGED IN SECTION -->
+                        <div id="success-section" class="section hidden">
+                            <h4>L'oggetto è stato salvato!</h4>
+                            <button class="modal-btn primary" href="#"></button>
+                        </div>
+                
+                    </div>
+                
+                </div>
+                
                 
                 <div id="map" class="active">
                     <div id="main-content">
@@ -102,7 +139,7 @@
     </div>
     <!-- jQuery must come first -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
-   <script>
+    <script>
         const serverURL = 'http://192.168.249.170:5030';//'http://192.168.249.170:5030';//'http://127.0.0.1:5030'; //'http://137.204.195.17:5030';
         
         const toggleButton = document.getElementById('btn-toggle');
@@ -123,6 +160,31 @@
         };
 
         let geojson = null;
+
+        closeSidebarBtn.addEventListener('click', () => {
+            sidebar.style.right = '-800px';
+            document.querySelector('.mainContent').classList.remove('blur-background');
+
+            const url = new URL(window.location);
+            url.searchParams.delete("object");
+            window.history.pushState({}, "", url);
+        });
+
+        function buildUsedDateIntervals(years, interval = 20) {
+            const usedBins = new Set();
+
+            years.forEach(year => {
+                const binStart = Math.floor(year / interval) * interval;
+                const boundedStart = Math.max(binStart, 1900);
+                const boundedEnd = boundedStart + interval - 1;
+                usedBins.add(JSON.stringify({ start: boundedStart, end: boundedEnd }));
+            });
+
+            return Array.from(usedBins)
+                .map(s => JSON.parse(s))
+                .sort((a, b) => a.start - b.start);
+        }
+
 
         fetch('redis_export.geojson') //'objects_and_coordinates_29_09_2025.geojson')
             .then(response => response.json())
@@ -175,38 +237,36 @@
                 });
 
                 if (years.length > 0) {
-                    const earliestYear = Math.min(...years);
-                    const latestYear = Math.max(...years);
 
                     const container = document.getElementById('date-filter');
-                    const interval = 20;//50;
-                    //for (let start = earliestYear; start <= latestYear; start += interval) {
-                    for (let start = 1900; start <= 2020; start += interval){
-                        const end = Math.min(start + interval - 1, latestYear);
-                        const button = document.createElement('button');
-                        button.className = 'filter-button';
+                    const interval = 20;
+
+                    // Build only bins that appear in data
+                    const bins = buildUsedDateIntervals(years, interval);
+
+                    bins.forEach(bin => {
+                        const { start, end } = bin;
+                        const button = document.createElement("button");
+
+                        button.className = "filter-button";
                         button.textContent = `${start} - ${end}`;
                         button.dataset.start = start;
                         button.dataset.end = end;
-                        button.dataset.filterType = 'date';
-                        button.dataset.filterValue = JSON.stringify({ start: start, end: end });
-                        // Add event listener if needed
+                        button.dataset.filterType = "date";
+                        button.dataset.filterValue = JSON.stringify(bin);
+
                         button.onclick = function() {
-                            //button.classList.toggle('selected');
-                            //applyFilter(this);
-                            //updateFiltersFromButtons();
-                            activeFilters[button.dataset.filterType] = button.dataset.filterValue;
-                            // Update button UI: mark only this button as selected in its category
-                            updateButtonSelections(button.dataset.filterType, button.dataset.filterValue);
-                            // Apply filters
+                            activeFilters.date = button.dataset.filterValue;
+                            updateButtonSelections("date", button.dataset.filterValue);
                             filterFeatures();
-                            //applyAllFilters();
                         };
+
                         container.appendChild(button);
-                    }
+                    });
                 } else {
                     console.log('No year data found.');
                 }
+                initMap(data);
             });
         document.querySelectorAll('.filter-button').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -229,43 +289,45 @@
         });
 
         function filterFeatures() {
-            filteredOffset = 0;
 
-            let filteredFeatures = geojson.features;
+            let filtered = geojson.features;
 
-            // Filter by date if selected
+            // --- Apply DATE ---
             if (activeFilters.date) {
-                let filterValue = JSON.parse(activeFilters.date);
-                filteredFeatures = filteredFeatures.filter(f => {
-                    const featureDate = f.properties.date; // your date property
-                    const dateRangeStr = f.properties.date;
-                    const dateRange = parseDateRange(dateRangeStr);
-                    if (!dateRange) return false;
-                    return (
-                        dateRange.start >= filterValue.start &&
-                        dateRange.end <= filterValue.end
-                    );
+                const range = JSON.parse(activeFilters.date);
+                filtered = filtered.filter(f => {
+                    const dr = parseDateRange(f.properties.date);
+                    return dr && dr.start >= range.start && dr.end <= range.end;
                 });
             }
 
-            // Filter by type if selected
+            // --- Apply TYPE ---
             if (activeFilters.type) {
-                filteredFeatures = filteredFeatures.filter(f => f.properties.type === activeFilters.type);
-            }
-            // Filter by fondo if selected
-            if (activeFilters.fondo) {
-                filteredFeatures = filteredFeatures.filter(f => f.properties.fondo === activeFilters.fondo);
+                filtered = filtered.filter(f => f.properties.type === activeFilters.type);
             }
 
-            // Update map display
-            //displayFeatures(filteredFeatures);
+            // --- Apply FONDO ---
+            if (activeFilters.fondo) {
+                filtered = filtered.filter(f => f.properties.fondo === activeFilters.fondo);
+            }
+
+            // ---- HERE IS THE MAGIC: UPDATE OTHER FILTERS ----
+            const remaining = computeRemainingFilterOptions(filtered);
+            updateFilterButtonsAvailability(remaining);
+
+            // ---- Update your grid/map results ----
             clearFeatureColumns();
-            allFeatures = filteredFeatures;
+            allFeatures = filtered;
             loadMoreFeatures();
-            console.log(activeFilters.type, activeFilters.fondo, activeFilters.date);
-            updateMapFilters(filteredFeatures, activeFilters.type === 'all' ? null : activeFilters.type, activeFilters.fondo, activeFilters.date);
-            //updateMapFilters(activeFilters.type === 'all' ? null : activeFilters.type, activeFilters.fondo, activeFilters.date);
-            //applyAllFilters();
+            //updateMapFilters(filtered, activeFilters.type, activeFilters.fondo, activeFilters.date);
+            applyAllFilters();
+        }
+
+
+        function updateURLWithObject(id) {
+            const url = new URL(window.location);
+            url.searchParams.set("object", id);
+            window.history.pushState({}, "", url);
         }
 
         function updateButtonSelections(filterType, selectedValue) {
@@ -278,7 +340,14 @@
                 }
             });
         }
-                
+        function getDateIntervalForYear(year) {
+            const interval = 20;        // Same interval you used to create buttons
+            const start = Math.floor(year / interval) * interval;
+            let mappedStart = Math.max(start, 1900);  // Minimum bound used in your UI
+            let mappedEnd = mappedStart + interval - 1;
+            return JSON.stringify({ start: mappedStart, end: mappedEnd });
+        }
+
         toggleButton.addEventListener('click', () => {
             if (mapContainer.classList.contains('active')) {
                 // Switch to grid
@@ -328,6 +397,9 @@
             const firstImgFile = first.img_path.split('/').pop();
             const firstOrigin = (first.origin || '').split('/');
             console.log(first)
+
+            // Here I update the URL based on the id of the object
+            updateURLWithObject(first.id);
 
             featuredDiv.innerHTML = `
                 <div class="image-container image-container-color">
@@ -473,8 +545,113 @@
                 }
             }
         });
+
+        // --- AUTO-OPEN OBJECT IF URL HAS ?object=ID ---
+        window.addEventListener("load", () => {
+            const url = new URL(window.location);
+            const objectId = url.searchParams.get("object");
+
+            if (objectId) {
+                const feature = geojson.features.find(f => String(f.properties.id) === objectId);
+                if (feature) {
+                    // Open sidebar
+                    document.getElementById("sidebar_metamotor").style.right = "0";
+
+                    // Load object + similar items
+                    searchSimilarObjects(objectId);
+
+                    // Center map & show popup
+                    const coords = feature.geometry.coordinates;
+                    map.once("load", () => {
+                        map.flyTo({ center: coords, zoom: 50 });
+                        map.once("moveend", () => {
+                            displayPopup(feature, map);
+                        });
+                    });
+                }
+            }
+        });
+    
+        function computeRemainingFilterOptions(features) {
+            const remaining = {
+                fondos: new Set(),
+                types: new Set(),
+                dates: new Set()
+            };
+
+            features.forEach(f => {
+                if (f.properties.fondo) remaining.fondos.add(f.properties.fondo);
+                if (f.properties.type) remaining.types.add(f.properties.type);
+
+                //const dr = parseDateRange(f.properties.date);
+                //if (dr) remaining.dates.add(JSON.stringify({start: dr.start, end: dr.end}));
+                const dr = parseDateRange(f.properties.date);
+                if (dr) {
+                    // Use midpoint of date range so it always falls inside one BIN
+                    const mid = Math.floor((dr.start + dr.end) / 2);
+                    const intervalKey = getDateIntervalForYear(mid);
+                    remaining.dates.add(intervalKey);
+                }
+
+            });
+
+            return remaining;
+        }
+        function updateFilterButtonsAvailability(remaining) {
+            // --- FONDO BUTTONS ---
+            document.querySelectorAll('#fondo-filter .filter-button').forEach(btn => {
+                const val = btn.dataset.filterValue;
+                if (val === "all" || remaining.fondos.has(val)) {
+                    btn.disabled = false;
+                    btn.classList.remove("disabled-filter");
+                } else {
+                    btn.disabled = true;
+                    btn.classList.add("disabled-filter");
+                }
+            });
+
+            // --- TYPE BUTTONS ---
+            /*document.querySelectorAll('#type-filter .type-icon').forEach(btn => {
+                const val = btn.dataset.filterValue;
+                if (val === "all" || remaining.types.has(val)) {
+                    btn.disabled = false;
+                    btn.classList.remove("disabled-filter");
+                } else {
+                    btn.disabled = true;
+                    btn.classList.add("disabled-filter");
+                }
+            });*/
+            document.querySelectorAll('#type-filter .type-icon').forEach(btn => {
+                const val = btn.dataset.type; // note: you use data-type in createIcon()
+
+                if (val === 'all' || remaining.types.has(val)) {
+                    btn.classList.remove('disabled-filter');
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                } else {
+                    btn.classList.add('disabled-filter');
+                    btn.style.pointerEvents = 'none'; // makes it unclickable
+                    btn.style.opacity = '0.5'; // visually gray out
+                }
+            });
+
+
+            // --- DATE RANGE BUTTONS ---
+            document.querySelectorAll('#date-filter .filter-button').forEach(btn => {
+                const val = btn.dataset.filterValue;
+                if (val === "all" || remaining.dates.has(val)) {
+                    btn.disabled = false;
+                    btn.classList.remove("disabled-filter");
+                } else {
+                    btn.disabled = true;
+                    btn.classList.add("disabled-filter");
+                }
+            });
+        }
     </script>
+    <script src="login.js"></script>
     <script src="map.js"></script>
     <script src="grid.js"></script>
+    <script src="modal.js"></script>
 </body>
 </html>

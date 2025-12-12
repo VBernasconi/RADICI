@@ -9,6 +9,7 @@ let keywordIndex = {};
 let geojsonData = {};
 let currentPopup = null;
 
+/*
 //Latest addition on 26 september 2025
 function applyAllFilters() {
     let filteredFeatures = geojson.features;
@@ -57,7 +58,51 @@ function applyAllFilters() {
     if (map.getLayer('cluster-count')) {
         map.setFilter('cluster-count', combinedFilter);
     }
+}*/
+function applyAllFilters() {
+    let filteredFeatures = geojsonData.features;
+
+    // TYPE
+    if (activeFilters.type && activeFilters.type !== 'all') {
+        filteredFeatures = filteredFeatures.filter(
+            f => f.properties.type === activeFilters.type
+        );
+    }
+
+    // FONDO
+    if (activeFilters.fondo) {
+        filteredFeatures = filteredFeatures.filter(
+            f => f.properties.fondo === activeFilters.fondo
+        );
+    }
+
+    // DATE
+    if (activeFilters.date) {
+        const range = JSON.parse(activeFilters.date);
+        filteredFeatures = filteredFeatures.filter(f => {
+            const dateRange = parseDateRange(f.properties.date);
+            if (!dateRange) return false;
+            return (
+                dateRange.start >= range.start &&
+                dateRange.end <= range.end
+            );
+        });
+    }
+
+    // Update map source
+    const source = map.getSource('objects');
+    if (source) {
+        source.setData({
+            type: 'FeatureCollection',
+            features: filteredFeatures
+        });
+    }
+
+    // Update cluster icon count + type icon expression
+    updateClusterTextField(activeFilters.type || null);
 }
+
+
 /**
  * Manage the duplicate coordinates and relocate coordinates to avoid overlap
  * @param{json file} geojson — the original geojson file holding coordinates information
@@ -117,6 +162,8 @@ function updateClusterTextField(selectedType) {
     map.setLayoutProperty('cluster-count', 'text-field', textField);
 }
 
+/*
+
 function getDateRangeFilter(exp) {
     if (!selectedDateRange) return null; // No filter on date yet
     if (selectedDateRange.includes('..')) { // For a date range (e.g., '2000-2010', '1880/1890')
@@ -149,7 +196,7 @@ function filterFeaturesByDate(features, selectedDate) {
             dateRange.end <= filterValue.end
         );
     });
-}
+}*/
 function updateMapFilters(filteredFeatures, selectedType, selectedFondo = null, selectedDate = null) {
     if (!map.getLayer('unclustered-point') || !map.getLayer('clusters') || !map.getLayer('cluster-count')) {
         return;
@@ -306,7 +353,7 @@ function createTypeFilterUI(types, layer_id) {
     container.appendChild(backgroundWrapper);
 
     // Set default filter
-    updateMapFilters(null);
+    //updateMapFilters(null);
 }
 
 /**
@@ -348,7 +395,6 @@ async function searchSimilarObjects(imageId) {
  * Display Popup for points
 */
 function displayPopup(feature, map){
-    //const feature = e.features[0];
     const coordinates = feature.geometry.coordinates.slice();
     const date = feature.properties.date;
     const title = feature.properties.title;
@@ -430,10 +476,11 @@ function displayPopup(feature, map){
     const sidebar = document.getElementById('sidebar_metamotor');
     const mainContent = document.getElementById('main-content');
 }
-
+let map;
+function initMap(geojson) {
 mapboxgl.accessToken = 'pk.eyJ1Ijoibmljb2xvc2luYXRyYSIsImEiOiJjbGs4ZTd0aWowaXNqM2ZybzEzYmplaGF3In0.zJYGpj2MF2Nw8M8XHuXc8Q'; //'pk.eyJ1IjoidmFsZW50aW5lY21vaSIsImEiOiJjbWFiMjNlcXQyNXI3MmlzZ2N4MjNldDNtIn0.coaDaJrBI89T8-7REpCA5g';
 
-const map = new mapboxgl.Map({
+map = new mapboxgl.Map({
     container: 'map',
     // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
     style: 'mapbox://styles/nicolosinatra/cmanmu2qc00f801s52qmxc3l9', //'mapbox://styles/mapbox/light-v11',
@@ -598,3 +645,4 @@ map.on('load', async () => {
     // Create UI controls
     createTypeFilterUI(types, 'unclustered-point');
 });
+}
