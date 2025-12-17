@@ -715,7 +715,7 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #372
     width: 100%;
     padding:0;
     margin:0;
-    background-color:rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.644);/*rgba(255, 255, 255, 0.5);*/
 }
 .card{
     z-index: 50;
@@ -938,3 +938,157 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #372
     font-family: 'Xanh Mono', monospace;
     font-size: 6em;
   }
+
+/* 3. SPERIMENTARE */
+.sperimentare-section{
+    width: 100%;
+    max-width: 1200px; /* optional: limit content width */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* center children inside */
+}
+.section-header {
+    display: flex;
+    align-items: center; /* vertically center right content with left number */
+    justify-content: flex-start;
+    gap: 40px; /* spacing between number and text */
+    padding: 40px 20px; /* optional spacing */
+}
+
+.section-number {
+    font-family: 'Xanh Mono', monospace;
+    font-size: 8rem; /* make the big number really big */
+    color: #222;
+    flex-shrink: 0; /* prevent shrinking on small screens */
+}
+
+.section-text {
+    font-weight: lighter;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* vertically center text with number */
+    max-width: 600px; /* optional: limit width of text */
+}
+
+.section-title {
+    font-family: 'Xanh Mono', monospace;
+    font-size: 3rem; /* bigger title */
+    font-weight: lighter;
+    margin: 0;
+    color: #222;
+}
+
+.section-subtitle {
+    font-family: 'Xanh Mono', monospace;
+    font-size: 1.25rem;
+    margin: 8px 0 0 0;
+    color: #555;
+    line-height: 1.5;
+}
+
+/*** ABOUT ***/
+
+/* PAGE WRAPPER */
+.page {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* SECTION HEADER */
+.section-text {
+    max-width: 600px;
+}
+.section-title {
+    font-size: 3.5rem;
+    margin: 0;
+}
+.section-subtitle {
+    margin-top: 12px;
+    font-size: 1.2rem;
+    line-height: 1.6;
+}
+
+/* MAIN CONTENT */
+.content {
+    max-width: 800px;
+    width: 100%;
+
+    display: flex;
+    flex-direction: column;
+    gap: 80px;
+
+    padding: 0 24px 120px;
+}
+
+/* VIDEO */
+.video-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+}
+
+.video-wrapper iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* TEXT BLOCKS */
+.text-block {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 48px;
+
+    align-items: start;
+}
+.text-block h2 {
+    font-size: 1.6rem;
+    margin: 0;
+    line-height: 1.3;
+}
+.text-block p {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.75;
+}
+
+/* LOGOS */
+.logos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 32px;
+    align-items: center;
+}
+
+.logos img {
+    width: 100%;
+    object-fit: contain;
+}
+/*** COLLECTION ***/
+.collection-page {
+    padding-top: 100px; /* adjust based on base header height */
+}
+
+.collection-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+#collection-grid .row {
+    display: flex;
+    gap: 10px; /* space between columns */
+}
+
+#collection-grid .col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#collection-grid .grid-item img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover; /* optional, makes all images cover their boxes */
+}
