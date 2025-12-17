@@ -576,6 +576,50 @@ def add_to_collection():
     r_users.sadd(f"user:{username}:collection:{collection_name}", obj_id)
     return jsonify({"success": True, "message": f"Object {obj_id} added to '{collection_name}'"})
 
+@app.route("/api/collection/<collection_name>")
+@login_required
+def get_collection(collection_name):
+    username = session["user"]
+
+    key = f"user:{username}:collection:{collection_name}"
+
+    if not r_users.exists(key):
+        return jsonify({"success": False, "error": "Collection not found"}), 404
+
+    object_ids = r_users.smembers(key)
+    objects = []
+
+    for obj_id in object_ids:
+        obj = next((o for o in redis_objects if o.get("id") == obj_id), None)
+        if obj:
+            objects.append({
+                "id": obj.get("id"),
+                "title": obj.get("title", ""),
+                "img_path": obj.get("img_path", ""),
+                "image": obj.get("image", ""),
+                "description": obj.get("model_base", "")
+            })
+
+    return jsonify({
+        "success": True,
+        "collection": collection_name,
+        "objects": objects
+    })
+
+@app.route("/collection/<collection_name>")
+@login_required
+def collection_page(collection_name):
+    username = session["user"]
+
+    # check if collection exists for this user
+    if not r_users.sismember(f"user:{username}:collections", collection_name):
+        return "Collection not found or unauthorized", 404
+
+    return render_template(
+        "collection.html",
+        collection_name=collection_name
+    )
+
 # ---------------------------------------------------------
 # RUN APP
 # ---------------------------------------------------------
