@@ -22,6 +22,7 @@ async function loginUser() {
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('collection-section').classList.remove('hidden');
             loadCollections();  // <-- load collections
+            checkUserStatus(); // update header without reload
             alert(data.message);
         } else {
             alert(data.error);
@@ -31,7 +32,7 @@ async function loginUser() {
         alert("Errore durante il login");
     }
 }
-async function loadCollections() {
+/*async function loadCollections() {
     const res = await fetch(`${serverURL}/user/collections`, { credentials: 'include' });
     const data = await res.json();
     const select = document.getElementById("collection-select");
@@ -40,6 +41,25 @@ async function loadCollections() {
         const opt = document.createElement("option");
         opt.value = c;
         opt.textContent = c;
+        select.appendChild(opt);
+    });
+}*/
+async function loadCollections() {
+    const res = await fetch(`${serverURL}/user/collections`, { credentials: 'include' });
+    const data = await res.json();
+    const select = document.getElementById("collection-select");
+    select.innerHTML = "";
+
+    data.collections.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.name;
+        opt.textContent = c.name;
+
+        // 🔥 AUTO-SELECT TARGET COLLECTION
+        if (targetCollection && c.name === targetCollection) {
+            opt.selected = true;
+        }
+
         select.appendChild(opt);
     });
 }
