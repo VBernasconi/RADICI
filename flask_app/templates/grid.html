@@ -140,7 +140,7 @@
 
         let geojson = null;
 
-        const closeFiltersBtn = document.getElementById('close-filters');
+        /**const closeFiltersBtn = document.getElementById('close-filters');
         const filtersCollapse = document.getElementById('collapseFiltri');
 
         if (closeFiltersBtn && filtersCollapse) {
@@ -148,7 +148,7 @@
                 const bsCollapse = bootstrap.Collapse.getOrCreateInstance(filtersCollapse);
                 bsCollapse.hide();
             });
-        }
+        }**/
         closeSidebarBtn.addEventListener('click', () => {
             sidebar.style.right = '-800px';
             document.querySelector('.mainContent').classList.remove('blur-background');
@@ -630,6 +630,22 @@
                     btn.classList.add("disabled-filter");
                 }
             });
+        }
+    </script>
+    <script>
+        let targetCollection = null;
+
+        // Read collection from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const collectionFromURL = urlParams.get("addToCollection");
+
+        if (collectionFromURL) {
+            targetCollection = collectionFromURL;
+
+            // Persist across interactions
+            sessionStorage.setItem("targetCollection", targetCollection);
+        } else {
+            targetCollection = sessionStorage.getItem("targetCollection");
         }
     </script>
     <script src="{{ url_for('static', filename='js/login.js') }}"></script>

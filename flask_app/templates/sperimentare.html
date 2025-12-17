@@ -1,7 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h1>[3] Sperimentare</h1>
+<div class="sperimentare-section">
+    <div class="section-header">
+        <!-- Left big number -->
+        <div class="section-number">[3]</div>
+
+        <!-- Right content -->
+        <div class="section-text">
+            <h2 class="section-title">Sperimentare</h2>
+            <p class="section-subtitle">In questa sezione puoi trovare i materiali che hai salvato, organizzarli e cercarne nuovi da aggiungere.</p>
+        </div>
+    </div>
     <div id="collections-container">
 
     </div>
@@ -18,7 +28,7 @@
             <div id="login-section" class="section">
                 <h3>ARTIFEX</h3>
                 <p>Ciao! Per poter salvare i contenuti è necessario autenticarsi</p>
-                <img src="img/icons-png/architecture-icon.png">
+                <img src="{{ url_for('static', filename='img/icons-png/architecture-icon.png') }}">
     
                 <input id="login-username" type="text" placeholder="Username" class="input-field">
                 <input id="login-password" type="password" placeholder="Password" class="input-field">
@@ -38,6 +48,7 @@
             </div>
         </div>
     </div>
+</div>
     <script src="login.js"></script>
     <script src="modal.js"></script>
     <script>
@@ -93,14 +104,29 @@
                         <img class="collection-image"
                             src="${coverImage}"
                             alt="${coll.name}">
-                        <div class="collection-add-btn">+</div>
+                        <div class="collection-add-btn" data-collection="${coll.name}">+</div>
                     </div>
 
                     <div class="collection-title">${coll.name.toUpperCase()}</div>
-                    <div class="collection-meta">${count.toString().padStart(2, '0')} Elementi</div>
-                `;
+                    <div class="collection-meta">${count.toString().padStart(2, '0')} Elementi</div>`
+                    ;
+                    
+                card.addEventListener("click", () => {
+                    window.location.href = `/collection/${encodeURIComponent(coll.name)}`;
+                });
 
                 container.appendChild(card);
+                const addBtn = card.querySelector('.collection-add-btn');
+
+                addBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // prevent card click conflicts
+
+                    const collectionName = addBtn.dataset.collection;
+
+                    // Redirect to grid with collection info
+                    window.location.href = `/esplorare?addToCollection=${encodeURIComponent(collectionName)}`;
+                });
+
             });
         } catch (err) {
             console.error("Error loading collections:", err);
