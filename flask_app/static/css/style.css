@@ -1067,7 +1067,7 @@ body { margin:0; padding:0;  font-family: 'Martian Mono', monospace; color: #372
 }
 /*** COLLECTION ***/
 .collection-page {
-    padding-top: 100px; /* adjust based on base header height */
+    padding-top: 160px; /* adjust based on base header height */
 }
 
 .collection-header {
